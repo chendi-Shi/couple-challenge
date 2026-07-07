@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: couple-challenge
+    env: node
+    region: oregon
+    plan: free
+    branch: master
+    buildCommand: npm install
+    startCommand: node server.js
