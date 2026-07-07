@@ -1,5 +1,2 @@
-flask>=3.0
-flask-socketio>=5.3
-python-socketio>=5.11
+gradio>=4.0
 requests>=2.31
-gunicorn>=21.2
