@@ -189,6 +189,67 @@
       <button id="btn-back-wish" class="btn-secondary">返回首页</button>
     </div>
 
+    <!-- ====== 情景扮演 ====== -->
+    <div id="roleplay-playing" class="screen">
+      <div class="round-bar"><span class="round-num">第 <span id="rp-round">1</span> / <span id="rp-total">3</span> 场</span><span class="round-cat">🎭 情景扮演</span></div>
+      <div class="question-card">
+        <div class="question-label">如果你是主角...</div>
+        <h3 id="rp-scenario-text"></h3>
+      </div>
+      <textarea id="rp-input" placeholder="写写你会怎么做..." maxlength="200"></textarea>
+      <button id="btn-submit-rp" class="btn-primary">提交答案</button>
+      <div class="answer-status">
+        <span class="status-badge" id="rp-status-me">👤 你：等待中</span>
+        <span class="status-badge" id="rp-status-partner">❤️ TA：等待中</span>
+      </div>
+    </div>
+
+    <div id="roleplay-reveal" class="screen">
+      <div class="result-reveal"><div class="result-icon">🎭</div><div class="result-text" id="rp-reveal-title">看看 TA 会怎么做</div></div>
+      <div class="question-card"><h3 id="rp-reveal-scenario"></h3></div>
+      <div class="answer-cards">
+        <div class="answer-card"><div class="answer-card-label">🐱</div><div class="answer-card-nickname" id="rp-name1"></div><div class="answer-card-text" id="rp-text1"></div></div>
+        <div class="answer-card"><div class="answer-card-label">🐶</div><div class="answer-card-nickname" id="rp-name2"></div><div class="answer-card-text" id="rp-text2"></div></div>
+      </div>
+      <button id="btn-next-rp" class="btn-primary">下一场</button>
+    </div>
+
+    <div id="roleplay-finished" class="screen">
+      <div class="hero"><div class="logo">🎭</div><h1>小剧场结束！</h1><p class="subtitle">下次见面可以真的演一演～</p></div>
+      <button id="btn-again-rp" class="btn-primary">再来一局</button>
+      <button id="btn-back-rp" class="btn-secondary">返回首页</button>
+    </div>
+
+    <!-- ====== 你画我猜 ====== -->
+    <div id="draw-playing" class="screen">
+      <div class="round-bar"><span class="round-num">第 <span id="dr-round">1</span> / <span id="dr-total">4</span> 轮</span><span class="round-cat">🎨 你画我猜</span></div>
+      <div class="draw-word-display" id="draw-word-display"></div>
+      <div class="draw-canvas-wrap">
+        <canvas id="draw-canvas" width="360" height="280"></canvas>
+        <div class="draw-tools">
+          <button class="draw-tool-btn" id="btn-black" style="background:#333"></button>
+          <button class="draw-tool-btn" id="btn-red" style="background:#ff6b9d"></button>
+          <button class="draw-tool-btn" id="btn-blue" style="background:#7c5cfc"></button>
+          <button class="draw-tool-btn" id="btn-green" style="background:#4caf50"></button>
+          <button class="draw-tool-btn" id="btn-orange" style="background:#ffb300"></button>
+          <button class="draw-clear-btn" id="btn-clear">清空</button>
+        </div>
+      </div>
+      <div id="guess-area" style="display:none;">
+        <input id="guess-input" type="text" placeholder="猜猜这是什么..." maxlength="20">
+        <button id="btn-submit-guess" class="btn-primary" style="margin-top:8px">猜一下！</button>
+      </div>
+      <div id="draw-guesses"></div>
+      <button id="btn-next-dr" class="btn-primary" style="display:none;">下一轮</button>
+    </div>
+
+    <div id="draw-finished" class="screen">
+      <div class="hero"><div class="logo">🎨</div><h1>画猜结束！</h1><p class="subtitle" id="dr-verdict"></p></div>
+      <div class="score-board" id="dr-score-board"></div>
+      <button id="btn-again-dr" class="btn-primary">再来一局</button>
+      <button id="btn-back-dr" class="btn-secondary">返回首页</button>
+    </div>
+
     <div id="toast" class="toast"></div>
     <div id="confetti-container"></div>
   </div>

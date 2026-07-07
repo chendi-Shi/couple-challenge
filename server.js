@@ -52,6 +52,8 @@ var GAME_MODES = {
   quiz:     { name: '💞 默契挑战', desc: '答题测默契，看谁更懂谁', icon: '💞' },
   story:    { name: '📝 故事接龙', desc: '一人一句，编一个属于你们的故事', icon: '📝' },
   wishlist: { name: '📋 愿望清单', desc: '一起写想一起做的事，攒到见面', icon: '📋' },
+  roleplay: { name: '🎭 情景扮演', desc: '给一个场景，各自写你会怎么做', icon: '🎭' },
+  draw:     { name: '🎨 你画我猜', desc: '一个人画，另一个人猜是什么', icon: '🎨' },
 };
 
 // ===================== 默契挑战 - 主题和题库 =====================
@@ -201,6 +203,31 @@ var rooms = {};
 var TOTAL_ROUNDS = 5;
 var STORY_ROUNDS = 6;
 var WISHLIST_ROUNDS = 5;
+var ROLEPLAY_ROUNDS = 3;
+var DRAW_ROUNDS = 4;
+
+// ===================== 情景扮演 - 场景 =====================
+var ROLEPLAY_SCENARIOS = [
+  '这是你们异地结束后的第一天，你睁开眼睛，TA 就在身边。你接下来会做什么？',
+  '你们的第一次约会，你来做计划。从早上 9 点到晚上 10 点，你怎么安排？',
+  '有一天你突然出现在 TA 的城市，没有提前告诉 TA。你会怎么制造惊喜？',
+  '你们在街上吵架了。你不想冷战，你会怎么打破僵局？',
+  '如果你们一起去买菜做饭，从挑菜到上桌，你会怎么分工商量？',
+  'TA 生日那天，你要给 TA 一个惊喜。你从早到晚怎么安排？',
+  '你们在异国他乡迷路了，语言不通。只剩下你俩互相依靠，怎么办？',
+  '你发现 TA 今天心情不好，隔着屏幕你怎么哄 TA 开心？',
+  '假如你们只有 500 块，要过一个完美的周末约会，你怎么花？',
+  '你们一起去宜家给未来的家挑家具，走到床品区的时候，你们的对话是什么？',
+];
+
+// ===================== 你画我猜 - 词语 =====================
+var DRAW_WORDS = [
+  '玫瑰', '月亮', '冰淇淋', '雨伞', '猫', '太阳', '蛋糕', '眼镜', '自行车',
+  '耳机', '灯笼', '沙发', '枕头', '拖鞋', '牙刷', '星星', '信封', '气球',
+  '拥抱', '牵手', '爱心', '戒指', '烟火', '行李箱', '相机', '闹钟', '奶茶',
+  '棒棒糖', '望远镜', '自拍杆', '充电宝', '暖手宝', '情书', '纪念日',
+  '异地恋', '早安', '晚安', '想你了', '见面', '拥抱你', '亲亲',
+];
 
 function createRoom(roomName, hostName, gameMode, themeKey, apiKey) {
   return {
@@ -221,6 +248,14 @@ function createRoom(roomName, hostName, gameMode, themeKey, apiKey) {
     // wishlist
     wishlistItems: [],
     wishlistPrompts: [],
+    // roleplay
+    roleplayScenarios: [],
+    roleplayAnswers: {},
+    // draw
+    drawWords: [],
+    drawRound: 0,
+    drawWord: '',
+    drawDrawer: '',
   };
 }
 
@@ -290,6 +325,8 @@ io.on('connection', function (socket) {
 
     if (room.gameMode === 'story') return startStory(room);
     if (room.gameMode === 'wishlist') return startWishlist(room);
+    if (room.gameMode === 'roleplay') return startRoleplay(room);
+    if (room.gameMode === 'draw') return startDraw(room);
 
     // quiz 模式
     room.questions = [];
@@ -370,6 +407,76 @@ io.on('connection', function (socket) {
     nextWishlistRound(room);
   });
 
+  // ====== 情景扮演 - 提交 ======
+  socket.on('submit_roleplay', function (text) {
+    var room = getRoom(socket);
+    if (!room || room.state !== 'playing' || room.gameMode !== 'roleplay') return;
+    room.roleplayAnswers = room.roleplayAnswers || {};
+    room.roleplayAnswers[socket.id] = text.trim();
+    io.to(socket.data.roomId).emit('player_answered', { playerId: socket.id, nickname: socket.data.nickname });
+    if (Object.keys(room.players).every(function (pid) { return room.roleplayAnswers[pid]; })) {
+      revealRoleplay(room);
+    }
+  });
+
+  socket.on('roleplay_next', function () {
+    var room = getRoom(socket);
+    if (!room || room.state !== 'playing' || room.gameMode !== 'roleplay') return;
+    room.roleplayAnswers = {};
+    nextRoleplayRound(room);
+  });
+
+  // ====== 你画我猜 - 画线 ======
+  socket.on('draw_line', function (data) {
+    var room = getRoom(socket);
+    if (!room || room.state !== 'playing' || room.gameMode !== 'draw') return;
+    // 广播给另一人
+    socket.to(socket.data.roomId).emit('draw_line', data);
+  });
+
+  socket.on('draw_clear', function () {
+    var room = getRoom(socket);
+    if (!room || room.state !== 'playing' || room.gameMode !== 'draw') return;
+    socket.to(socket.data.roomId).emit('draw_clear');
+  });
+
+  // ====== 你画我猜 - 猜词 ======
+  socket.on('submit_guess', function (guess) {
+    var room = getRoom(socket);
+    if (!room || room.state !== 'playing' || room.gameMode !== 'draw') return;
+    if (!room.drawWord) return;
+    var correct = guess.trim() === room.drawWord;
+    var rid = socket.data.roomId;
+    if (correct) {
+      // 猜对了
+      var pids = Object.keys(room.players);
+      var drawerPid = room.drawDrawer;
+      var guesserPid = pids.find(function (pid) { return pid !== drawerPid; });
+      if (guesserPid) room.players[guesserPid].score = (room.players[guesserPid].score || 0) + 1;
+      io.to(rid).emit('guess_result', {
+        correct: true, guess: guess.trim(),
+        guesser: socket.data.nickname, word: room.drawWord,
+      });
+      io.to(rid).emit('room_update', roomInfo(room, rid));
+    } else {
+      io.to(rid).emit('guess_result', {
+        correct: false, guess: guess.trim(),
+        guesser: socket.data.nickname,
+      });
+    }
+  });
+
+  socket.on('draw_next', function () {
+    var room = getRoom(socket);
+    if (!room || room.state !== 'playing' || room.gameMode !== 'draw') return;
+    room.drawRound++;
+    if (room.drawRound > DRAW_ROUNDS) {
+      finishDraw(room);
+    } else {
+      startDrawRound(room);
+    }
+  });
+
   // ====== 重新开始 ======
   socket.on('play_again', function () {
     var room = getRoom(socket);
@@ -384,6 +491,11 @@ io.on('connection', function (socket) {
     room.storyPrompt = '';
     room.wishlistItems = [];
     room.wishlistPrompts = [];
+    room.roleplayScenarios = [];
+    room.roleplayAnswers = {};
+    room.drawWords = [];
+    room.drawRound = 0;
+    room.drawWord = '';
     Object.values(room.players).forEach(function (p) { p.score = 0; p.streak = 0; });
     io.to(socket.data.roomId).emit('room_update', roomInfo(room, socket.data.roomId));
   });
@@ -590,6 +702,89 @@ function roomInfo(room, rid) {
       return obj;
     })(),
   };
+}
+
+// ===================== 情景扮演逻辑 =====================
+function startRoleplay(room) {
+  room.state = 'playing';
+  room.round = 0;
+  room.roleplayAnswers = {};
+  room.roleplayScenarios = [];
+  nextRoleplayRound(room);
+}
+
+function nextRoleplayRound(room) {
+  room.round++;
+  if (room.round > ROLEPLAY_ROUNDS) return finishRoleplay(room);
+  room.roleplayAnswers = {};
+  var available = ROLEPLAY_SCENARIOS.filter(function (s) { return !room.roleplayScenarios.some(function (u) { return u === s; }); });
+  if (available.length === 0) { room.roleplayScenarios = []; available = ROLEPLAY_SCENARIOS; }
+  var scenario = available[Math.floor(Math.random() * available.length)];
+  room.roleplayScenarios.push(scenario);
+  io.to(getRoomId(room)).emit('roleplay_round', {
+    round: room.round, totalRounds: ROLEPLAY_ROUNDS, scenario: scenario,
+  });
+}
+
+function revealRoleplay(room) {
+  var pids = Object.keys(room.players);
+  var items = [];
+  for (var i = 0; i < pids.length; i++) {
+    items.push({ nickname: room.players[pids[i]].nickname, text: room.roleplayAnswers[pids[i]] });
+  }
+  io.to(getRoomId(room)).emit('roleplay_reveal', {
+    round: room.round, totalRounds: ROLEPLAY_ROUNDS,
+    scenario: room.roleplayScenarios[room.roleplayScenarios.length - 1],
+    items: items,
+  });
+}
+
+function finishRoleplay(room) {
+  room.state = 'finished';
+  var rid = getRoomId(room);
+  io.to(rid).emit('roleplay_finished', {});
+  io.to(rid).emit('room_update', roomInfo(room, rid));
+}
+
+// ===================== 你画我猜逻辑 =====================
+function startDraw(room) {
+  room.state = 'playing';
+  room.drawRound = 0;
+  room.drawWords = [];
+  Object.values(room.players).forEach(function (p) { p.score = 0; });
+  room.drawRound = 0;
+  startDrawRound(room);
+}
+
+function startDrawRound(room) {
+  room.drawRound++;
+  if (room.drawRound > DRAW_ROUNDS) return finishDraw(room);
+  room._answers = {};
+  var available = DRAW_WORDS.filter(function (w) { return !room.drawWords.some(function (u) { return u === w; }); });
+  if (available.length === 0) { room.drawWords = []; available = DRAW_WORDS; }
+  room.drawWord = available[Math.floor(Math.random() * available.length)];
+  room.drawWords.push(room.drawWord);
+  var pids = Object.keys(room.players);
+  // 轮流画
+  room.drawDrawer = pids[(room.drawRound - 1) % 2];
+  var drawerName = room.players[room.drawDrawer].nickname;
+  io.to(getRoomId(room)).emit('draw_round', {
+    round: room.drawRound,
+    totalRounds: DRAW_ROUNDS,
+    word: room.drawWord,
+    drawerId: room.drawDrawer,
+    drawerName: drawerName,
+  });
+}
+
+function finishDraw(room) {
+  room.state = 'finished';
+  var rid = getRoomId(room);
+  var sorted = Object.values(room.players).sort(function (a, b) { return (b.score || 0) - (a.score || 0); });
+  io.to(rid).emit('draw_finished', {
+    players: sorted.map(function (p) { return { nickname: p.nickname, score: p.score || 0 }; }),
+  });
+  io.to(rid).emit('room_update', roomInfo(room, rid));
 }
 
 var PORT = process.env.PORT || 7860;

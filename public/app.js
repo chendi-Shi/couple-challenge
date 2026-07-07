@@ -7,11 +7,12 @@ function $$(s) { return document.querySelectorAll(s); }
 function show(name) { $$('.screen').forEach(function (s) { s.classList.remove('active'); }); $('#' + name).classList.add('active'); }
 function toast(m) { var e = $('#toast'); e.textContent = m; e.classList.add('show'); setTimeout(function () { e.classList.remove('show'); }, 2500); }
 
-// ====== 游戏模式定义 ======
 var GAME_MODES = [
-  { key: 'quiz',     icon: '💞', name: '默契挑战', desc: '答题测默契，比拼了解程度' },
-  { key: 'story',    icon: '📝', name: '故事接龙', desc: '一人一句，编一个故事' },
+  { key: 'quiz',     icon: '💞', name: '默契挑战', desc: '答题测默契' },
+  { key: 'story',    icon: '📝', name: '故事接龙', desc: '一人一句编故事' },
   { key: 'wishlist', icon: '📋', name: '愿望清单', desc: '写下想一起做的事' },
+  { key: 'roleplay', icon: '🎭', name: '情景扮演', desc: '给场景各自演一段' },
+  { key: 'draw',     icon: '🎨', name: '你画我猜', desc: '一人画一人猜' },
 ];
 
 var THEMES = [
@@ -24,7 +25,7 @@ var THEMES = [
   { key: 'ai',       icon: '🤖', name: 'AI 出题',  desc: 'DeepSeek 生成' },
 ];
 
-// ====== 渲染游戏模式选择器 ======
+// Render game mode picker
 (function () {
   var g = $('#game-mode-picker');
   GAME_MODES.forEach(function (m) {
@@ -43,7 +44,7 @@ var THEMES = [
   });
 })();
 
-// ====== 渲染主题选择器 ======
+// Render theme picker
 (function () {
   var g = $('#theme-picker');
   THEMES.forEach(function (t) {
@@ -61,7 +62,7 @@ var THEMES = [
   });
 })();
 
-// ====== Tabs ======
+// Tabs
 $$('.tab').forEach(function (t) {
   t.addEventListener('click', function () {
     $$('.tab').forEach(function (x) { x.classList.remove('active'); });
@@ -71,14 +72,12 @@ $$('.tab').forEach(function (t) {
   });
 });
 
-// ====== 创建房间 ======
+// Create room
 $('#btn-create').addEventListener('click', function () {
   var n = $('#create-nickname').value.trim();
   var rn = $('#room-name').value.trim() || '甜蜜小屋';
   if (!n) return toast('请输入昵称');
-  if (selectedGame === 'quiz' && selectedTheme === 'ai') {
-    if (!$('#api-key-input').value.trim()) return toast('AI 主题需要 API Key');
-  }
+  if (selectedGame === 'quiz' && selectedTheme === 'ai' && !$('#api-key-input').value.trim()) return toast('AI 主题需要 API Key');
   myNickname = n;
   socket.emit('create_room', {
     roomName: rn, nickname: n, gameMode: selectedGame,
@@ -88,7 +87,7 @@ $('#btn-create').addEventListener('click', function () {
   });
 });
 
-// ====== 加入房间 ======
+// Join room
 $('#btn-join').addEventListener('click', function () {
   var rid = $('#join-room-id').value.trim().toUpperCase();
   var n = $('#join-nickname').value.trim();
@@ -101,17 +100,11 @@ $('#btn-join').addEventListener('click', function () {
   });
 });
 
-// ====== 开始游戏 ======
+// Start
 $('#btn-start').addEventListener('click', function () { socket.emit('start_game'); });
-
-// ====== 返回首页 ======
 function goLobby() { socket.emit('play_again'); show('lobby'); }
-$('#btn-back-quiz').addEventListener('click', goLobby);
-$('#btn-back-story').addEventListener('click', goLobby);
-$('#btn-back-wish').addEventListener('click', goLobby);
 
-// ==================== 默契挑战 ====================
-
+// ==================== Quiz ====================
 function selectOption(opt, el) {
   if (el.classList.contains('selected')) return;
   $$('.option-btn').forEach(function (b) { b.classList.remove('selected'); });
@@ -120,7 +113,6 @@ function selectOption(opt, el) {
   $('#status-me').textContent = '👤 你：已提交'; $('#status-me').classList.add('done');
   $$('.option-btn').forEach(function (b) { b.style.pointerEvents = 'none'; });
 }
-
 $('#btn-submit-fill').addEventListener('click', function () {
   var v = $('#fill-input').value.trim();
   if (!v) return toast('写点什么吧～');
@@ -128,22 +120,20 @@ $('#btn-submit-fill').addEventListener('click', function () {
   $('#btn-submit-fill').disabled = true; $('#fill-input').disabled = true;
   $('#status-me').textContent = '👤 你：已提交'; $('#status-me').classList.add('done');
 });
-
 $('#btn-next-quiz').addEventListener('click', function () { socket.emit('next_round'); });
 $('#btn-again-quiz').addEventListener('click', function () { socket.emit('play_again'); show('waiting'); });
+$('#btn-back-quiz').addEventListener('click', goLobby);
 
-// ==================== 故事接龙 ====================
-
+// ==================== Story ====================
 $('#btn-submit-story').addEventListener('click', function () {
   var v = $('#story-input').value.trim();
   if (!v) return toast('写下你的句子吧～');
   socket.emit('submit_story_line', v);
 });
-
 $('#btn-again-story').addEventListener('click', function () { socket.emit('play_again'); show('waiting'); });
+$('#btn-back-story').addEventListener('click', goLobby);
 
-// ==================== 愿望清单 ====================
-
+// ==================== Wishlist ====================
 $('#btn-submit-wish').addEventListener('click', function () {
   var v = $('#wl-input').value.trim();
   if (!v) return toast('写下你的愿望吧～');
@@ -151,11 +141,95 @@ $('#btn-submit-wish').addEventListener('click', function () {
   $('#btn-submit-wish').disabled = true; $('#wl-input').disabled = true;
   $('#wl-status-me').textContent = '👤 你：已提交'; $('#wl-status-me').classList.add('done');
 });
-
 $('#btn-next-wish').addEventListener('click', function () { socket.emit('wishlist_next'); });
 $('#btn-again-wish').addEventListener('click', function () { socket.emit('play_again'); show('waiting'); });
+$('#btn-back-wish').addEventListener('click', goLobby);
 
-// ==================== Socket 事件 ====================
+// ==================== Roleplay ====================
+$('#btn-submit-rp').addEventListener('click', function () {
+  var v = $('#rp-input').value.trim();
+  if (!v) return toast('写下你会怎么做吧～');
+  socket.emit('submit_roleplay', v);
+  $('#btn-submit-rp').disabled = true; $('#rp-input').disabled = true;
+  $('#rp-status-me').textContent = '👤 你：已提交'; $('#rp-status-me').classList.add('done');
+});
+$('#btn-next-rp').addEventListener('click', function () { socket.emit('roleplay_next'); });
+$('#btn-again-rp').addEventListener('click', function () { socket.emit('play_again'); show('waiting'); });
+$('#btn-back-rp').addEventListener('click', goLobby);
+
+// ==================== Draw ====================
+var drawColor = '#333';
+var drawCanvas = $('#draw-canvas');
+var drawCtx = null;
+var isDrawing = false;
+var isDrawer = false;
+
+function initCanvas() {
+  if (!drawCanvas) return;
+  drawCtx = drawCanvas.getContext('2d');
+  drawCtx.lineWidth = 3; drawCtx.lineCap = 'round'; drawCtx.strokeStyle = drawColor;
+
+  drawCanvas.addEventListener('mousedown', function (e) {
+    if (!isDrawer) return; isDrawing = true; drawCtx.beginPath();
+    var r = drawCanvas.getBoundingClientRect();
+    var x = e.clientX - r.left, y = e.clientY - r.top;
+    drawCtx.moveTo(x, y);
+    socket.emit('draw_line', { x: x, y: y, color: drawColor, isStart: true });
+  });
+  drawCanvas.addEventListener('mousemove', function (e) {
+    if (!isDrawing || !isDrawer) return;
+    var r = drawCanvas.getBoundingClientRect();
+    var x = e.clientX - r.left, y = e.clientY - r.top;
+    drawCtx.lineTo(x, y); drawCtx.stroke();
+    socket.emit('draw_line', { x: x, y: y, color: drawColor, isStart: false });
+  });
+  drawCanvas.addEventListener('mouseup', function () { isDrawing = false; });
+  drawCanvas.addEventListener('mouseleave', function () { isDrawing = false; });
+
+  drawCanvas.addEventListener('touchstart', function (e) {
+    if (!isDrawer) return; e.preventDefault(); isDrawing = true; drawCtx.beginPath();
+    var r = drawCanvas.getBoundingClientRect(); var t = e.touches[0];
+    var x = t.clientX - r.left, y = t.clientY - r.top;
+    drawCtx.moveTo(x, y);
+    socket.emit('draw_line', { x: x, y: y, color: drawColor, isStart: true });
+  });
+  drawCanvas.addEventListener('touchmove', function (e) {
+    if (!isDrawing || !isDrawer) return; e.preventDefault();
+    var r = drawCanvas.getBoundingClientRect(); var t = e.touches[0];
+    var x = t.clientX - r.left, y = t.clientY - r.top;
+    drawCtx.lineTo(x, y); drawCtx.stroke();
+    socket.emit('draw_line', { x: x, y: y, color: drawColor, isStart: false });
+  });
+  drawCanvas.addEventListener('touchend', function () { isDrawing = false; });
+}
+
+initCanvas();
+
+$('#btn-black').addEventListener('click', function () { drawColor = '#333'; if (drawCtx) drawCtx.strokeStyle = drawColor; });
+$('#btn-red').addEventListener('click', function () { drawColor = '#ff6b9d'; if (drawCtx) drawCtx.strokeStyle = drawColor; });
+$('#btn-blue').addEventListener('click', function () { drawColor = '#7c5cfc'; if (drawCtx) drawCtx.strokeStyle = drawColor; });
+$('#btn-green').addEventListener('click', function () { drawColor = '#4caf50'; if (drawCtx) drawCtx.strokeStyle = drawColor; });
+$('#btn-orange').addEventListener('click', function () { drawColor = '#ffb300'; if (drawCtx) drawCtx.strokeStyle = drawColor; });
+
+$('#btn-clear').addEventListener('click', function () {
+  if (!drawCtx || !isDrawer) return;
+  drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  socket.emit('draw_clear');
+});
+$('#btn-submit-guess').addEventListener('click', function () {
+  var v = $('#guess-input').value.trim();
+  if (!v) return;
+  socket.emit('submit_guess', v);
+  $('#guess-input').value = '';
+});
+$('#btn-next-dr').addEventListener('click', function () {
+  socket.emit('draw_next');
+  if (isDrawer && drawCtx) drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+});
+$('#btn-again-dr').addEventListener('click', function () { socket.emit('play_again'); show('waiting'); });
+$('#btn-back-dr').addEventListener('click', goLobby);
+
+// ==================== Socket Events ====================
 
 socket.on('room_update', function (room) { updateWaiting(room); });
 
@@ -186,16 +260,9 @@ socket.on('new_round', function (data) {
 
 socket.on('player_answered', function (d) {
   if (d.playerId === socket.id) return;
-  // quiz playing
-  var quizEl = $('#quiz-playing');
-  if (quizEl && quizEl.classList.contains('active')) {
-    $('#status-partner').textContent = '❤️ TA：已提交'; $('#status-partner').classList.add('done');
-  }
-  // wishlist playing
-  var wlEl = $('#wishlist-playing');
-  if (wlEl && wlEl.classList.contains('active')) {
-    $('#wl-status-partner').textContent = '❤️ TA：已提交'; $('#wl-status-partner').classList.add('done');
-  }
+  if ($('#quiz-playing').classList.contains('active')) { $('#status-partner').textContent = '❤️ TA：已提交'; $('#status-partner').classList.add('done'); }
+  if ($('#wishlist-playing').classList.contains('active')) { $('#wl-status-partner').textContent = '❤️ TA：已提交'; $('#wl-status-partner').classList.add('done'); }
+  if ($('#roleplay-playing').classList.contains('active')) { $('#rp-status-partner').textContent = '❤️ TA：已提交'; $('#rp-status-partner').classList.add('done'); }
 });
 
 socket.on('round_result', function (data) {
@@ -240,12 +307,10 @@ socket.on('story_update', function (data) {
   show('story-playing');
   $('#story-prompt-text').textContent = data.prompt;
   $('#story-round').textContent = data.currentRound; $('#story-total').textContent = data.totalRounds;
-  var linesEl = $('#story-lines');
-  linesEl.innerHTML = data.lines.map(function (l) {
+  $('#story-lines').innerHTML = data.lines.map(function (l) {
     return '<div class="story-line"><span class="story-author">' + l.nickname + '</span><span class="story-content">' + l.text + '</span></div>';
   }).join('');
   $('#story-scroll').scrollTop = $('#story-scroll').scrollHeight;
-
   var myTurn = data.turnPlayerId === socket.id;
   if (myTurn) {
     $('#story-input').disabled = false; $('#btn-submit-story').disabled = false;
@@ -264,9 +329,7 @@ socket.on('story_update', function (data) {
 socket.on('story_finished', function (data) {
   show('story-finished');
   $('#story-full').innerHTML = '<div class="story-full-prompt">' + data.prompt + '</div>' +
-    data.lines.map(function (l) {
-      return '<div class="story-line"><span class="story-author">' + l.nickname + '</span><span class="story-content">' + l.text + '</span></div>';
-    }).join('');
+    data.lines.map(function (l) { return '<div class="story-line"><span class="story-author">' + l.nickname + '</span><span class="story-content">' + l.text + '</span></div>'; }).join('');
   spawnConfetti();
 });
 
@@ -292,30 +355,98 @@ socket.on('wishlist_finished', function (data) {
   show('wishlist-finished');
   $('#wl-list').innerHTML = data.items.map(function (item) {
     return '<div class="wl-item"><div class="wl-item-prompt">' + item.prompt.icon + ' ' + item.prompt.q + '</div>' +
-      '<div class="wl-item-answers">' + item.answers.map(function (a) {
-        return '<div class="wl-ans-line"><b>' + a.nickname + '</b>：' + a.text + '</div>';
-      }).join('') + '</div></div>';
+      item.answers.map(function (a) { return '<div class="wl-ans-line"><b>' + a.nickname + '</b>：' + a.text + '</div>'; }).join('') + '</div>';
+  }).join('');
+  spawnConfetti();
+});
+
+// --- Roleplay ---
+socket.on('roleplay_round', function (data) {
+  show('roleplay-playing');
+  $('#rp-round').textContent = data.round; $('#rp-total').textContent = data.totalRounds;
+  $('#rp-scenario-text').textContent = data.scenario;
+  $('#rp-status-me').textContent = '👤 你：等待中'; $('#rp-status-me').classList.remove('done');
+  $('#rp-status-partner').textContent = '❤️ TA：等待中'; $('#rp-status-partner').classList.remove('done');
+  $('#btn-submit-rp').disabled = false; $('#rp-input').disabled = false; $('#rp-input').value = '';
+  $('#rp-input').focus();
+});
+
+socket.on('roleplay_reveal', function (data) {
+  show('roleplay-reveal');
+  $('#rp-reveal-scenario').textContent = data.scenario;
+  if (data.items.length >= 1) { $('#rp-name1').textContent = data.items[0].nickname; $('#rp-text1').textContent = data.items[0].text; }
+  if (data.items.length >= 2) { $('#rp-name2').textContent = data.items[1].nickname; $('#rp-text2').textContent = data.items[1].text; }
+});
+
+socket.on('roleplay_finished', function () { show('roleplay-finished'); spawnConfetti(); });
+
+// --- Draw ---
+socket.on('draw_round', function (data) {
+  show('draw-playing');
+  $('#dr-round').textContent = data.round; $('#dr-total').textContent = data.totalRounds;
+  isDrawer = data.drawerId === socket.id;
+  $('#btn-next-dr').style.display = 'none';
+  $('#draw-guesses').innerHTML = '';
+  if (isDrawer) {
+    $('#draw-word-display').innerHTML = '<div class="draw-word">🎨 你来画：<b>' + data.word + '</b></div>';
+    $('#guess-area').style.display = 'none';
+    if (drawCtx) drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  } else {
+    $('#draw-word-display').innerHTML = '<div class="draw-word">🔍 ' + data.drawerName + ' 在画，你来猜！<b>' + data.word.length + '</b> 个字</div>';
+    $('#guess-area').style.display = 'block';
+    if (drawCtx) drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+  }
+});
+
+socket.on('draw_line', function (data) {
+  if (isDrawer || !drawCtx) return;
+  drawCtx.strokeStyle = data.color || '#333';
+  if (data.isStart) { drawCtx.beginPath(); drawCtx.moveTo(data.x, data.y); }
+  else { drawCtx.lineTo(data.x, data.y); drawCtx.stroke(); }
+});
+
+socket.on('draw_clear', function () {
+  if (isDrawer || !drawCtx) return;
+  drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+});
+
+socket.on('guess_result', function (data) {
+  var el = $('#draw-guesses');
+  if (data.correct) {
+    el.innerHTML += '<div class="guess-correct">✅ ' + data.guesser + ' 猜对了！答案是：' + data.word + '</div>';
+    $('#btn-next-dr').style.display = 'block';
+    $('#guess-area').style.display = 'none';
+    spawnConfetti();
+  } else {
+    el.innerHTML += '<div class="guess-wrong">❌ ' + data.guesser + '：「' + data.guess + '」不对</div>';
+  }
+});
+
+socket.on('draw_finished', function (data) {
+  show('draw-finished');
+  var s = data.players.sort(function (a, b) { return b.score - a.score; });
+  $('#dr-verdict').textContent = s[0].score > s[1].score ? '🏆 ' + s[0].nickname + ' 是猜词王！' : '平手！都很厉害～';
+  $('#dr-score-board').innerHTML = s.map(function (p) {
+    return '<div class="score-row"><span class="name">' + p.nickname + '</span><span class="score">' + p.score + ' 分</span></div>';
   }).join('');
   spawnConfetti();
 });
 
 socket.on('partner_left', function () { toast('TA 离开了房间 😢'); show('lobby'); });
 
-// ====== 等待室 ======
+// ====== Waiting room ======
 function updateWaiting(room) {
   if (room.state !== 'waiting') return;
   var players = Object.values(room.players);
   $('#waiting-room-id').textContent = room.roomId;
   $('#waiting-room-name').textContent = room.name;
   $('#waiting-game-tag').textContent = room.gameModeLabel || '默契挑战';
-  // 游戏模式标签用不同颜色
   var gm = room.gameMode;
-  var gameColor = gm === 'story' ? '#ff6b6b' : gm === 'wishlist' ? '#ffa726' : '#7c5cfc';
-  $('#waiting-game-tag').style.background = gameColor === '#7c5cfc' ? '#f0ecff' : '#fff3e0';
-  $('#waiting-game-tag').style.color = gameColor;
+  var c = gm === 'story' ? '#ff6b6b' : gm === 'wishlist' ? '#ffa726' : gm === 'roleplay' ? '#ec407a' : gm === 'draw' ? '#5c6bc0' : '#7c5cfc';
+  $('#waiting-game-tag').style.background = c === '#7c5cfc' ? '#f0ecff' : '#f0ecff';
+  $('#waiting-game-tag').style.color = c;
   $('#waiting-theme-tag').textContent = room.themeLabel || '';
   $('#waiting-theme-tag').style.display = gm === 'quiz' ? 'inline-block' : 'none';
-
   if (players.length >= 1) { $('#waiting-player1').textContent = players[0].nickname; $('#player-card-host').classList.add('filled'); }
   if (players.length >= 2) {
     $('#waiting-player2').textContent = players[1].nickname;
@@ -327,7 +458,6 @@ function updateWaiting(room) {
   }
 }
 
-// ====== 庆祝 ======
 function spawnConfetti() {
   var c = $('#confetti-container');
   var colors = ['#ff6b9d', '#7c5cfc', '#ffb300', '#4caf50', '#ff9800', '#00bcd4'];
@@ -336,8 +466,7 @@ function spawnConfetti() {
   for (var i = 0; i < 35; i++) {
     var p = document.createElement('div'); p.className = 'confetti-piece';
     p.style.left = Math.random() * 100 + '%'; p.style.top = -(Math.random() * 20) + 'px';
-    p.style.animationDelay = Math.random() * 0.8 + 's';
-    p.style.animationDuration = (1.5 + Math.random() * 2) + 's';
+    p.style.animationDelay = Math.random() * 0.8 + 's'; p.style.animationDuration = (1.5 + Math.random() * 2) + 's';
     p.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
     p.style.width = (8 + Math.random() * 14) + 'px'; p.style.height = (8 + Math.random() * 14) + 'px';
     p.style.borderRadius = Math.random() > 0.5 ? '50%' : '3px';
@@ -348,16 +477,15 @@ function spawnConfetti() {
   setTimeout(function () { c.innerHTML = ''; }, 3000);
 }
 
-// ====== 回车 ======
 document.addEventListener('keydown', function (e) {
   if (e.key !== 'Enter') return;
-  var lobby = $('#lobby');
-  if (lobby && lobby.classList.contains('active')) {
-    if ($('#tab-create').classList.contains('active')) $('#btn-create').click(); else $('#btn-join').click();
-  }
+  if ($('#lobby').classList.contains('active')) { if ($('#tab-create').classList.contains('active')) $('#btn-create').click(); else $('#btn-join').click(); }
   if ($('#quiz-playing').classList.contains('active') && $('#fill-answer').style.display !== 'none') $('#btn-submit-fill').click();
   if ($('#quiz-result').classList.contains('active')) $('#btn-next-quiz').click();
   if ($('#story-playing').classList.contains('active') && !$('#story-input').disabled) $('#btn-submit-story').click();
   if ($('#wishlist-playing').classList.contains('active') && !$('#wl-input').disabled) $('#btn-submit-wish').click();
   if ($('#wishlist-reveal').classList.contains('active')) $('#btn-next-wish').click();
+  if ($('#roleplay-playing').classList.contains('active') && !$('#rp-input').disabled) $('#btn-submit-rp').click();
+  if ($('#roleplay-reveal').classList.contains('active')) $('#btn-next-rp').click();
+  if ($('#draw-playing').classList.contains('active') && !isDrawer) { var gi = $('#guess-input'); if (gi && gi.value.trim()) $('#btn-submit-guess').click(); }
 });
