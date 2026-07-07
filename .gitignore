@@ -1,4 +1,25 @@
 node_modules/
-tunnel.sh
-tunnel.log
+*.log
+.token
+.gh
+.gh2
+.pubkey
+__pycache__/
+*.pyc
+venv/
+.env
 .DS_Store
+# Temp scripts
+create-repo.js
+push.js
+up.js
+up2.js
+check.js
+deploy.js
+_addkey.js
+_setup.js
+_*.js
+_*.py
+go.ps1
+tunnel.js
+tunnel.sh
