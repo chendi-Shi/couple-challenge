@@ -1,381 +1,363 @@
 var socket = io();
+var myNickname = '', roomId = '', myRole = '';
+var selectedGame = 'quiz', selectedTheme = 'random';
 
-var myNickname = '';
-var roomId = '';
-var myScore = 0;
-var partnerScore = 0;
-var selectedTheme = 'random';
-
-// ====== DOM helpers ======
 function $(s) { return document.querySelector(s); }
 function $$(s) { return document.querySelectorAll(s); }
+function show(name) { $$('.screen').forEach(function (s) { s.classList.remove('active'); }); $('#' + name).classList.add('active'); }
+function toast(m) { var e = $('#toast'); e.textContent = m; e.classList.add('show'); setTimeout(function () { e.classList.remove('show'); }, 2500); }
 
-function showScreen(name) {
-  $$('.screen').forEach(function (s) { s.classList.remove('active'); });
-  $('#' + name).classList.add('active');
-}
-
-function toast(msg) {
-  var el = $('#toast');
-  el.textContent = msg;
-  el.classList.add('show');
-  setTimeout(function () { el.classList.remove('show'); }, 2500);
-}
-
-// ====== 主题定义（与服务端对应）=====
-var THEMES = [
-  { key: 'random',   icon: '🎲', name: '随机混搭',  desc: '各种题型随机，每次惊喜' },
-  { key: 'food',     icon: '🍜', name: '美食',      desc: '关于吃的甜蜜默契' },
-  { key: 'travel',   icon: '✈️', name: '旅行',      desc: '想象一起出行的场景' },
-  { key: 'love',     icon: '💕', name: '恋爱',      desc: '关于我们之间那些事' },
-  { key: 'daily',    icon: '🏠', name: '日常',      desc: '宅在一起的日常想象' },
-  { key: 'deeptalk', icon: '💬', name: '真心话',    desc: '走心的问题，更了解彼此' },
-  { key: 'ai',       icon: '🤖', name: 'AI 智能出题', desc: 'DeepSeek 实时生成，永不重复' },
+// ====== 游戏模式定义 ======
+var GAME_MODES = [
+  { key: 'quiz',     icon: '💞', name: '默契挑战', desc: '答题测默契，比拼了解程度' },
+  { key: 'story',    icon: '📝', name: '故事接龙', desc: '一人一句，编一个故事' },
+  { key: 'wishlist', icon: '📋', name: '愿望清单', desc: '写下想一起做的事' },
 ];
 
-// ====== 渲染主题选择器 ======
-(function renderThemePicker() {
-  var grid = $('#theme-picker');
-  THEMES.forEach(function (t) {
-    var div = document.createElement('div');
-    div.className = 'theme-option' + (t.key === 'random' ? ' selected' : '');
-    div.setAttribute('data-key', t.key);
-    div.innerHTML = '<span class="theme-icon">' + t.icon + '</span>' +
-      '<span class="theme-name">' + t.name + '</span>' +
-      '<span class="theme-desc">' + t.desc + '</span>';
-    div.addEventListener('click', function () {
-      $$('.theme-option').forEach(function (o) { o.classList.remove('selected'); });
-      div.classList.add('selected');
-      selectedTheme = t.key;
-      // AI 主题时显示 API Key 输入框
-      $('#api-key-group').style.display = selectedTheme === 'ai' ? 'flex' : 'none';
+var THEMES = [
+  { key: 'random',   icon: '🎲', name: '随机混搭', desc: '各种题型随机' },
+  { key: 'food',     icon: '🍜', name: '美食',     desc: '关于吃的默契' },
+  { key: 'travel',   icon: '✈️', name: '旅行',     desc: '想象一起出行' },
+  { key: 'love',     icon: '💕', name: '恋爱',     desc: '我们之间的事' },
+  { key: 'daily',    icon: '🏠', name: '日常',     desc: '宅家想象' },
+  { key: 'deeptalk', icon: '💬', name: '真心话',   desc: '走心问题' },
+  { key: 'ai',       icon: '🤖', name: 'AI 出题',  desc: 'DeepSeek 生成' },
+];
+
+// ====== 渲染游戏模式选择器 ======
+(function () {
+  var g = $('#game-mode-picker');
+  GAME_MODES.forEach(function (m) {
+    var d = document.createElement('div');
+    d.className = 'game-mode-option' + (m.key === 'quiz' ? ' selected' : '');
+    d.setAttribute('data-key', m.key);
+    d.innerHTML = '<span class="gm-icon">' + m.icon + '</span><span class="gm-name">' + m.name + '</span><span class="gm-desc">' + m.desc + '</span>';
+    d.addEventListener('click', function () {
+      $$('.game-mode-option').forEach(function (o) { o.classList.remove('selected'); });
+      d.classList.add('selected');
+      selectedGame = m.key;
+      $('#quiz-theme-area').style.display = selectedGame === 'quiz' ? 'block' : 'none';
+      if (selectedGame !== 'quiz') { $('#api-key-group').style.display = 'none'; }
     });
-    grid.appendChild(div);
+    g.appendChild(d);
   });
 })();
 
-// ====== Tab 切换 ======
-$$('.tab').forEach(function (tab) {
-  tab.addEventListener('click', function () {
-    $$('.tab').forEach(function (t) { t.classList.remove('active'); });
-    $$('.tab-content').forEach(function (c) { c.classList.remove('active'); });
-    tab.classList.add('active');
-    $('#tab-' + tab.dataset.tab).classList.add('active');
+// ====== 渲染主题选择器 ======
+(function () {
+  var g = $('#theme-picker');
+  THEMES.forEach(function (t) {
+    var d = document.createElement('div');
+    d.className = 'theme-option' + (t.key === 'random' ? ' selected' : '');
+    d.setAttribute('data-key', t.key);
+    d.innerHTML = '<span class="theme-icon">' + t.icon + '</span><span class="theme-name">' + t.name + '</span><span class="theme-desc">' + t.desc + '</span>';
+    d.addEventListener('click', function () {
+      $$('.theme-option').forEach(function (o) { o.classList.remove('selected'); });
+      d.classList.add('selected');
+      selectedTheme = t.key;
+      $('#api-key-group').style.display = selectedTheme === 'ai' ? 'flex' : 'none';
+    });
+    g.appendChild(d);
+  });
+})();
+
+// ====== Tabs ======
+$$('.tab').forEach(function (t) {
+  t.addEventListener('click', function () {
+    $$('.tab').forEach(function (x) { x.classList.remove('active'); });
+    $$('.tab-content').forEach(function (x) { x.classList.remove('active'); });
+    t.classList.add('active');
+    $('#tab-' + t.dataset.tab).classList.add('active');
   });
 });
 
 // ====== 创建房间 ======
 $('#btn-create').addEventListener('click', function () {
-  var nickname = $('#create-nickname').value.trim();
-  var roomName = $('#room-name').value.trim() || '甜蜜小屋';
-  if (!nickname) return toast('请输入昵称');
-
-  // AI 主题需要 API Key
-  if (selectedTheme === 'ai') {
-    var apiKey = $('#api-key-input').value.trim();
-    if (!apiKey) return toast('选择 AI 主题需要填写 DeepSeek API Key');
+  var n = $('#create-nickname').value.trim();
+  var rn = $('#room-name').value.trim() || '甜蜜小屋';
+  if (!n) return toast('请输入昵称');
+  if (selectedGame === 'quiz' && selectedTheme === 'ai') {
+    if (!$('#api-key-input').value.trim()) return toast('AI 主题需要 API Key');
   }
-
-  myNickname = nickname;
-  var apiKeyVal = $('#api-key-input').value.trim();
+  myNickname = n;
   socket.emit('create_room', {
-    roomName: roomName,
-    nickname: nickname,
-    theme: selectedTheme,
-    apiKey: apiKeyVal,
+    roomName: rn, nickname: n, gameMode: selectedGame,
+    theme: selectedTheme, apiKey: $('#api-key-input').value.trim(),
   }, function (res) {
-    if (res.ok) {
-      roomId = res.roomId;
-      updateWaiting(res.room);
-      showScreen('waiting');
-    }
+    if (res.ok) { roomId = res.roomId; myRole = 'host'; updateWaiting(res.room); show('waiting'); }
   });
 });
 
 // ====== 加入房间 ======
 $('#btn-join').addEventListener('click', function () {
   var rid = $('#join-room-id').value.trim().toUpperCase();
-  var nickname = $('#join-nickname').value.trim();
+  var n = $('#join-nickname').value.trim();
   if (!rid) return toast('请输入房间码');
-  if (!nickname) return toast('请输入昵称');
-  myNickname = nickname;
-  socket.emit('join_room', { roomId: rid, nickname: nickname }, function (res) {
+  if (!n) return toast('请输入昵称');
+  myNickname = n;
+  socket.emit('join_room', { roomId: rid, nickname: n }, function (res) {
     if (!res.ok) return toast(res.error);
-    roomId = res.roomId;
-    updateWaiting(res.room);
-    showScreen('waiting');
+    roomId = res.roomId; myRole = 'guest'; updateWaiting(res.room); show('waiting');
   });
 });
 
 // ====== 开始游戏 ======
-$('#btn-start').addEventListener('click', function () {
-  socket.emit('start_game');
-});
+$('#btn-start').addEventListener('click', function () { socket.emit('start_game'); });
 
-// ====== 提交选择题 ======
+// ====== 返回首页 ======
+function goLobby() { socket.emit('play_again'); show('lobby'); }
+$('#btn-back-quiz').addEventListener('click', goLobby);
+$('#btn-back-story').addEventListener('click', goLobby);
+$('#btn-back-wish').addEventListener('click', goLobby);
+
+// ==================== 默契挑战 ====================
+
 function selectOption(opt, el) {
   if (el.classList.contains('selected')) return;
   $$('.option-btn').forEach(function (b) { b.classList.remove('selected'); });
   el.classList.add('selected');
   socket.emit('submit_answer', opt);
-  $('#status-me').textContent = '👤 你：已提交';
-  $('#status-me').classList.add('done');
+  $('#status-me').textContent = '👤 你：已提交'; $('#status-me').classList.add('done');
   $$('.option-btn').forEach(function (b) { b.style.pointerEvents = 'none'; });
 }
 
-// ====== 提交填空题 ======
 $('#btn-submit-fill').addEventListener('click', function () {
-  var val = $('#fill-input').value.trim();
-  if (!val) return toast('写点什么吧～');
-  socket.emit('submit_answer', val);
-  $('#btn-submit-fill').disabled = true;
-  $('#fill-input').disabled = true;
-  $('#status-me').textContent = '👤 你：已提交';
-  $('#status-me').classList.add('done');
+  var v = $('#fill-input').value.trim();
+  if (!v) return toast('写点什么吧～');
+  socket.emit('submit_answer', v);
+  $('#btn-submit-fill').disabled = true; $('#fill-input').disabled = true;
+  $('#status-me').textContent = '👤 你：已提交'; $('#status-me').classList.add('done');
 });
 
-// ====== 下一题 ======
-$('#btn-next').addEventListener('click', function () {
-  socket.emit('next_round');
+$('#btn-next-quiz').addEventListener('click', function () { socket.emit('next_round'); });
+$('#btn-again-quiz').addEventListener('click', function () { socket.emit('play_again'); show('waiting'); });
+
+// ==================== 故事接龙 ====================
+
+$('#btn-submit-story').addEventListener('click', function () {
+  var v = $('#story-input').value.trim();
+  if (!v) return toast('写下你的句子吧～');
+  socket.emit('submit_story_line', v);
 });
 
-// ====== 再玩一局 / 返回 ======
-$('#btn-again').addEventListener('click', function () {
-  socket.emit('play_again');
-  $('#review-list').innerHTML = '';
-  $('#ai-summary').style.display = 'none';
-  showScreen('waiting');
+$('#btn-again-story').addEventListener('click', function () { socket.emit('play_again'); show('waiting'); });
+
+// ==================== 愿望清单 ====================
+
+$('#btn-submit-wish').addEventListener('click', function () {
+  var v = $('#wl-input').value.trim();
+  if (!v) return toast('写下你的愿望吧～');
+  socket.emit('submit_wish', v);
+  $('#btn-submit-wish').disabled = true; $('#wl-input').disabled = true;
+  $('#wl-status-me').textContent = '👤 你：已提交'; $('#wl-status-me').classList.add('done');
 });
 
-$('#btn-back').addEventListener('click', function () {
-  location.reload();
-});
+$('#btn-next-wish').addEventListener('click', function () { socket.emit('wishlist_next'); });
+$('#btn-again-wish').addEventListener('click', function () { socket.emit('play_again'); show('waiting'); });
 
 // ==================== Socket 事件 ====================
 
-socket.on('room_update', function (room) {
-  updateWaiting(room);
-});
+socket.on('room_update', function (room) { updateWaiting(room); });
 
+// --- Quiz ---
 socket.on('new_round', function (data) {
-  showScreen('playing');
+  show('quiz-playing');
   $('#ai-commentary').style.display = 'none';
-  $('#round-num').textContent = data.round;
-  $('#round-total').textContent = data.totalRounds;
-
-  var q = data.question;
-  $('#round-cat').textContent = q.category || '';
-  $('#question-text').textContent = q.q;
-
-  var labelMap = { who: '谁更可能...', choice: '默契选择', fill: '默契问答', challenge: '⚡ 小挑战' };
-  $('#question-label').textContent = labelMap[q.type] || '默契问答';
-
+  $('#round-num').textContent = data.round; $('#round-total').textContent = data.totalRounds;
+  var q = data.question; $('#round-cat').textContent = q.category || ''; $('#question-text').textContent = q.q;
+  var lm = { who: '谁更可能...', choice: '默契选择', fill: '默契问答', challenge: '⚡ 小挑战' };
+  $('#question-label').textContent = lm[q.type] || '默契问答';
   $('#challenge-emoji').style.display = q.emoji ? 'block' : 'none';
   if (q.emoji) $('#challenge-emoji').textContent = q.emoji;
-
-  // 重置状态
-  $('#status-me').textContent = '👤 你：等待中';
-  $('#status-me').classList.remove('done');
-  $('#status-partner').textContent = '❤️ TA：等待中';
-  $('#status-partner').classList.remove('done');
-  $('#btn-submit-fill').disabled = false;
-  $('#fill-input').disabled = false;
-  $('#fill-input').value = '';
-
-  // 渲染选项
-  if (q.type === 'fill') {
-    $('#choice-options').style.display = 'none';
-    $('#fill-answer').style.display = 'flex';
-  } else {
-    $('#choice-options').style.display = 'flex';
-    $('#fill-answer').style.display = 'none';
-    var grid = $('#choice-options');
-    grid.innerHTML = '';
-    (q.options || []).forEach(function (opt) {
-      var btn = document.createElement('button');
-      btn.className = 'option-btn';
-      btn.textContent = opt;
-      btn.addEventListener('click', function () { selectOption(opt, btn); });
-      grid.appendChild(btn);
+  $('#status-me').textContent = '👤 你：等待中'; $('#status-me').classList.remove('done');
+  $('#status-partner').textContent = '❤️ TA：等待中'; $('#status-partner').classList.remove('done');
+  $('#btn-submit-fill').disabled = false; $('#fill-input').disabled = false; $('#fill-input').value = '';
+  if (q.type === 'fill') { $('#choice-options').style.display = 'none'; $('#fill-answer').style.display = 'flex'; }
+  else {
+    $('#choice-options').style.display = 'flex'; $('#fill-answer').style.display = 'none';
+    var grid = $('#choice-options'); grid.innerHTML = '';
+    (q.options || []).forEach(function (o) {
+      var b = document.createElement('button'); b.className = 'option-btn'; b.textContent = o;
+      b.addEventListener('click', function () { selectOption(o, b); });
+      grid.appendChild(b);
     });
   }
 });
 
-// 对方提交
-socket.on('player_answered', function (data) {
-  if (data.playerId === socket.id) return;
-  $('#status-partner').textContent = '❤️ TA：已提交';
-  $('#status-partner').classList.add('done');
+socket.on('player_answered', function (d) {
+  if (d.playerId === socket.id) return;
+  // quiz playing
+  var quizEl = $('#quiz-playing');
+  if (quizEl && quizEl.classList.contains('active')) {
+    $('#status-partner').textContent = '❤️ TA：已提交'; $('#status-partner').classList.add('done');
+  }
+  // wishlist playing
+  var wlEl = $('#wishlist-playing');
+  if (wlEl && wlEl.classList.contains('active')) {
+    $('#wl-status-partner').textContent = '❤️ TA：已提交'; $('#wl-status-partner').classList.add('done');
+  }
 });
 
-// 揭晓结果
 socket.on('round_result', function (data) {
-  showScreen('result');
-
-  // 隐藏上一轮的 AI 点评
+  show('quiz-result');
   $('#ai-commentary').style.display = 'none';
-
-  var iconEl = $('#result-icon');
-  var textEl = $('#result-text');
-
-  if (data.bonus) {
-    iconEl.textContent = '💕';
-    textEl.textContent = '默契 +1！心有灵犀';
-    spawnConfetti();
-  } else if (data.question.type === 'challenge') {
-    iconEl.textContent = '😂';
-    textEl.textContent = '不管谁快，你们都完成了挑战！';
-  } else if (data.question.type === 'fill') {
-    iconEl.textContent = '💭';
-    textEl.textContent = '看看 TA 写下了什么～';
-  } else {
-    iconEl.textContent = '🤔';
-    textEl.textContent = '想法不太一样，也是一种默契～';
-  }
-
-  var playerIds = Object.keys(data.answers);
-  if (playerIds.length >= 1) {
-    $('#result-nickname1').textContent = data.answers[playerIds[0]].nickname;
-    $('#result-answer1').textContent = data.answers[playerIds[0]].answer;
-  }
-  if (playerIds.length >= 2) {
-    $('#result-nickname2').textContent = data.answers[playerIds[1]].nickname;
-    $('#result-answer2').textContent = data.answers[playerIds[1]].answer;
-  }
+  var icon = $('#result-icon'), text = $('#result-text');
+  if (data.bonus) { icon.textContent = '💕'; text.textContent = '默契 +1！心有灵犀'; spawnConfetti(); }
+  else if (data.question.type === 'challenge') { icon.textContent = '😂'; text.textContent = '不管怎样，你们完成了挑战！'; }
+  else if (data.question.type === 'fill') { icon.textContent = '💭'; text.textContent = '看看 TA 写下了什么～'; }
+  else { icon.textContent = '🤔'; text.textContent = '想法不一样，也是一种默契～'; }
+  var pids = Object.keys(data.answers);
+  if (pids.length >= 1) { $('#result-nickname1').textContent = data.answers[pids[0]].nickname; $('#result-answer1').textContent = data.answers[pids[0]].answer; }
+  if (pids.length >= 2) { $('#result-nickname2').textContent = data.answers[pids[1]].nickname; $('#result-answer2').textContent = data.answers[pids[1]].answer; }
 });
 
-// AI 点评（异步到达）
-socket.on('ai_commentary', function (data) {
-  $('#ai-commentary').style.display = 'block';
-  $('#ai-commentary-text').textContent = data.text;
-});
+socket.on('ai_commentary', function (d) { $('#ai-commentary').style.display = 'block'; $('#ai-commentary-text').textContent = d.text; });
+socket.on('ai_summary', function (d) { $('#ai-summary').style.display = 'block'; $('#ai-summary-text').textContent = d.text; });
 
-// AI 总结（异步到达）
-socket.on('ai_summary', function (data) {
-  $('#ai-summary').style.display = 'block';
-  $('#ai-summary-text').textContent = data.text;
-});
-
-// 游戏结束
 socket.on('game_finished', function (data) {
-  showScreen('finished');
-  $('#verdict-text').textContent = data.verdict;
-  if (data.emoji) $('#finish-emoji').textContent = data.emoji;
-
-  // 计分板
-  var board = $('#score-board');
-  board.innerHTML = data.players.map(function (p, i) {
-    var crown = i === 0 ? '🏆 ' : '';
-    return '<div class="score-row"><span class="name">' + crown + p.nickname + '</span><span class="score">' + p.score + ' 分</span></div>';
+  if (data.mode !== 'quiz') return;
+  show('quiz-finished');
+  $('#verdict-text').textContent = data.verdict; if (data.emoji) $('#finish-emoji').textContent = data.emoji;
+  $('#score-board').innerHTML = data.players.map(function (p, i) {
+    return '<div class="score-row"><span class="name">' + (i === 0 ? '🏆 ' : '') + p.nickname + '</span><span class="score">' + p.score + ' 分</span></div>';
   }).join('');
-
-  // 回顾
-  renderReview(data.history || []);
-
-  spawnConfetti();
+  renderReview(data.history || []); spawnConfetti();
 });
 
-// 对方离开
-socket.on('partner_left', function () {
-  toast('TA 离开了房间 😢');
-  showScreen('lobby');
-});
-
-// ====== 回顾渲染 ======
-function renderReview(history) {
-  var list = $('#review-list');
-  list.innerHTML = '';
-  history.forEach(function (item) {
-    var playerIds = Object.keys(item.answers);
-    var badge = item.bonus
-      ? '<span class="rev-badge match">💕 默契</span>'
-      : '<span class="rev-badge miss">不一样</span>';
-
-    var answersHtml = '';
-    playerIds.forEach(function (pid) {
-      answersHtml += '<div class="rev-a"><div class="rev-nick">' +
-        item.answers[pid].nickname +
-        '</div><div class="rev-ans">' + item.answers[pid].answer + '</div></div>';
+function renderReview(h) {
+  var l = $('#review-list'); l.innerHTML = '';
+  h.forEach(function (item) {
+    var badge = item.bonus ? '<span class="rev-badge match">💕 默契</span>' : '<span class="rev-badge miss">不一样</span>';
+    var a = ''; Object.keys(item.answers).forEach(function (pid) {
+      a += '<div class="rev-a"><div class="rev-nick">' + item.answers[pid].nickname + '</div><div class="rev-ans">' + item.answers[pid].answer + '</div></div>';
     });
-
-    list.innerHTML += '<div class="review-item"><div class="rev-q">' + badge + ' ' +
-      item.question.q + '</div><div class="rev-answers">' + answersHtml + '</div></div>';
+    l.innerHTML += '<div class="review-item"><div class="rev-q">' + badge + ' ' + item.question.q + '</div><div class="rev-answers">' + a + '</div></div>';
   });
 }
 
-// ====== 等待室更新 ======
+// --- Story ---
+socket.on('story_update', function (data) {
+  show('story-playing');
+  $('#story-prompt-text').textContent = data.prompt;
+  $('#story-round').textContent = data.currentRound; $('#story-total').textContent = data.totalRounds;
+  var linesEl = $('#story-lines');
+  linesEl.innerHTML = data.lines.map(function (l) {
+    return '<div class="story-line"><span class="story-author">' + l.nickname + '</span><span class="story-content">' + l.text + '</span></div>';
+  }).join('');
+  $('#story-scroll').scrollTop = $('#story-scroll').scrollHeight;
+
+  var myTurn = data.turnPlayerId === socket.id;
+  if (myTurn) {
+    $('#story-input').disabled = false; $('#btn-submit-story').disabled = false;
+    $('#story-input').value = ''; $('#story-input').focus();
+    $('#story-turn-hint').innerHTML = '✏️ <b>该你写了！</b>';
+    $('#story-input').style.display = 'block'; $('#btn-submit-story').style.display = 'block';
+    $('#story-waiting').style.display = 'none';
+  } else {
+    $('#story-input').disabled = true; $('#btn-submit-story').disabled = true;
+    $('#story-turn-hint').innerHTML = '⏳ 等待 <b>' + (data.turnNickname || 'TA') + '</b> 写下一句...';
+    $('#story-input').style.display = 'none'; $('#btn-submit-story').style.display = 'none';
+    $('#story-waiting').style.display = 'block';
+  }
+});
+
+socket.on('story_finished', function (data) {
+  show('story-finished');
+  $('#story-full').innerHTML = '<div class="story-full-prompt">' + data.prompt + '</div>' +
+    data.lines.map(function (l) {
+      return '<div class="story-line"><span class="story-author">' + l.nickname + '</span><span class="story-content">' + l.text + '</span></div>';
+    }).join('');
+  spawnConfetti();
+});
+
+// --- Wishlist ---
+socket.on('wishlist_round', function (data) {
+  show('wishlist-playing');
+  $('#wl-round').textContent = data.round; $('#wl-total').textContent = data.totalRounds;
+  $('#wl-prompt-text').textContent = data.prompt.q;
+  $('#wl-status-me').textContent = '👤 你：等待中'; $('#wl-status-me').classList.remove('done');
+  $('#wl-status-partner').textContent = '❤️ TA：等待中'; $('#wl-status-partner').classList.remove('done');
+  $('#btn-submit-wish').disabled = false; $('#wl-input').disabled = false; $('#wl-input').value = '';
+  $('#wl-input').focus();
+});
+
+socket.on('wishlist_reveal', function (data) {
+  show('wishlist-reveal');
+  if (data.items.length >= 1) { $('#wl-name1').textContent = data.items[0].nickname; $('#wl-text1').textContent = data.items[0].text; }
+  if (data.items.length >= 2) { $('#wl-name2').textContent = data.items[1].nickname; $('#wl-text2').textContent = data.items[1].text; }
+  spawnConfetti();
+});
+
+socket.on('wishlist_finished', function (data) {
+  show('wishlist-finished');
+  $('#wl-list').innerHTML = data.items.map(function (item) {
+    return '<div class="wl-item"><div class="wl-item-prompt">' + item.prompt.icon + ' ' + item.prompt.q + '</div>' +
+      '<div class="wl-item-answers">' + item.answers.map(function (a) {
+        return '<div class="wl-ans-line"><b>' + a.nickname + '</b>：' + a.text + '</div>';
+      }).join('') + '</div></div>';
+  }).join('');
+  spawnConfetti();
+});
+
+socket.on('partner_left', function () { toast('TA 离开了房间 😢'); show('lobby'); });
+
+// ====== 等待室 ======
 function updateWaiting(room) {
   if (room.state !== 'waiting') return;
   var players = Object.values(room.players);
-
   $('#waiting-room-id').textContent = room.roomId;
   $('#waiting-room-name').textContent = room.name;
-  $('#waiting-theme-tag').textContent = room.themeLabel || '随机混搭';
+  $('#waiting-game-tag').textContent = room.gameModeLabel || '默契挑战';
+  // 游戏模式标签用不同颜色
+  var gm = room.gameMode;
+  var gameColor = gm === 'story' ? '#ff6b6b' : gm === 'wishlist' ? '#ffa726' : '#7c5cfc';
+  $('#waiting-game-tag').style.background = gameColor === '#7c5cfc' ? '#f0ecff' : '#fff3e0';
+  $('#waiting-game-tag').style.color = gameColor;
+  $('#waiting-theme-tag').textContent = room.themeLabel || '';
+  $('#waiting-theme-tag').style.display = gm === 'quiz' ? 'inline-block' : 'none';
 
-  if (players.length >= 1) {
-    $('#waiting-player1').textContent = players[0].nickname;
-    $('#player-card-host').classList.add('filled');
-  }
+  if (players.length >= 1) { $('#waiting-player1').textContent = players[0].nickname; $('#player-card-host').classList.add('filled'); }
   if (players.length >= 2) {
     $('#waiting-player2').textContent = players[1].nickname;
-    $('#player-card-guest').classList.remove('empty');
-    $('#player-card-guest').classList.add('filled');
-    $('#btn-start').disabled = false;
-    $('#btn-start').textContent = '开始挑战！';
+    $('#player-card-guest').classList.remove('empty'); $('#player-card-guest').classList.add('filled');
+    $('#btn-start').disabled = false; $('#btn-start').textContent = '开始游戏！';
   } else {
-    $('#player-card-guest').classList.add('empty');
-    $('#player-card-guest').classList.remove('filled');
-    $('#waiting-player2').textContent = '等待中...';
-    $('#btn-start').disabled = true;
-    $('#btn-start').textContent = '等待 TA 加入...';
+    $('#player-card-guest').classList.add('empty'); $('#player-card-guest').classList.remove('filled');
+    $('#waiting-player2').textContent = '等待中...'; $('#btn-start').disabled = true; $('#btn-start').textContent = '等待 TA 加入...';
   }
 }
 
-// ====== 庆祝彩带 ======
+// ====== 庆祝 ======
 function spawnConfetti() {
-  var container = $('#confetti-container');
-  var colors = ['#ff6b9d', '#7c5cfc', '#ffb300', '#4caf50', '#ff9800', '#00bcd4', '#e91e63'];
+  var c = $('#confetti-container');
+  var colors = ['#ff6b9d', '#7c5cfc', '#ffb300', '#4caf50', '#ff9800', '#00bcd4'];
   var emojis = ['💕', '✨', '💖', '🌟', '💝', '🎉', '💞', '💗'];
-
-  var fragment = document.createDocumentFragment();
-  for (var i = 0; i < 40; i++) {
-    var piece = document.createElement('div');
-    piece.className = 'confetti-piece';
-    piece.style.left = Math.random() * 100 + '%';
-    piece.style.top = -(Math.random() * 20) + 'px';
-    piece.style.animationDelay = Math.random() * 0.8 + 's';
-    piece.style.animationDuration = (1.5 + Math.random() * 2) + 's';
-    piece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-    piece.style.width = (8 + Math.random() * 14) + 'px';
-    piece.style.height = (8 + Math.random() * 14) + 'px';
-    piece.style.borderRadius = Math.random() > 0.5 ? '50%' : '3px';
-    if (Math.random() > 0.7) {
-      piece.textContent = emojis[Math.floor(Math.random() * emojis.length)];
-      piece.style.fontSize = '16px';
-      piece.style.backgroundColor = 'transparent';
-    }
-    fragment.appendChild(piece);
+  var f = document.createDocumentFragment();
+  for (var i = 0; i < 35; i++) {
+    var p = document.createElement('div'); p.className = 'confetti-piece';
+    p.style.left = Math.random() * 100 + '%'; p.style.top = -(Math.random() * 20) + 'px';
+    p.style.animationDelay = Math.random() * 0.8 + 's';
+    p.style.animationDuration = (1.5 + Math.random() * 2) + 's';
+    p.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+    p.style.width = (8 + Math.random() * 14) + 'px'; p.style.height = (8 + Math.random() * 14) + 'px';
+    p.style.borderRadius = Math.random() > 0.5 ? '50%' : '3px';
+    if (Math.random() > 0.7) { p.textContent = emojis[Math.floor(Math.random() * emojis.length)]; p.style.fontSize = '16px'; p.style.backgroundColor = 'transparent'; }
+    f.appendChild(p);
   }
-  container.innerHTML = '';
-  container.appendChild(fragment);
-
-  setTimeout(function () { container.innerHTML = ''; }, 3000);
+  c.innerHTML = ''; c.appendChild(f);
+  setTimeout(function () { c.innerHTML = ''; }, 3000);
 }
 
-// ====== 回车快捷键 ======
+// ====== 回车 ======
 document.addEventListener('keydown', function (e) {
   if (e.key !== 'Enter') return;
-  if ($('#lobby').classList.contains('active')) {
-    if ($('#tab-create').classList.contains('active')) {
-      $('#btn-create').click();
-    } else {
-      $('#btn-join').click();
-    }
+  var lobby = $('#lobby');
+  if (lobby && lobby.classList.contains('active')) {
+    if ($('#tab-create').classList.contains('active')) $('#btn-create').click(); else $('#btn-join').click();
   }
-  if ($('#playing').classList.contains('active') && $('#fill-answer').style.display !== 'none') {
-    $('#btn-submit-fill').click();
-  }
-  if ($('#result').classList.contains('active')) {
-    $('#btn-next').click();
-  }
+  if ($('#quiz-playing').classList.contains('active') && $('#fill-answer').style.display !== 'none') $('#btn-submit-fill').click();
+  if ($('#quiz-result').classList.contains('active')) $('#btn-next-quiz').click();
+  if ($('#story-playing').classList.contains('active') && !$('#story-input').disabled) $('#btn-submit-story').click();
+  if ($('#wishlist-playing').classList.contains('active') && !$('#wl-input').disabled) $('#btn-submit-wish').click();
+  if ($('#wishlist-reveal').classList.contains('active')) $('#btn-next-wish').click();
 });
