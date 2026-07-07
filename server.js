@@ -521,6 +521,7 @@ async function finishGame(room) {
 }
 
 var PORT = process.env.PORT || 3456;
+
 server.listen(PORT, function () {
   console.log('💞 情侣默契挑战 v3 (AI)  http://localhost:' + PORT);
 });
