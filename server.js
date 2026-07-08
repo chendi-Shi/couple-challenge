@@ -17,7 +17,7 @@ async function callDeepSeek(messages, apiKey, maxTokens) {
   var res = await fetch(DEEPSEEK_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-    body: JSON.stringify({ model: DEEPSEEK_MODEL, messages: messages, temperature: 0.9, max_tokens: maxTokens || 600 }),
+    body: JSON.stringify({ model: DEEPSEEK_MODEL, messages: messages, temperature: 1.5, max_tokens: maxTokens || 600 }),
   });
   if (!res.ok) { var err = await res.text(); throw new Error('DeepSeek error ' + res.status + ': ' + err); }
   var data = await res.json();
@@ -25,16 +25,16 @@ async function callDeepSeek(messages, apiKey, maxTokens) {
 }
 
 async function generateAIQuestion(apiKey) {
-  var prompt = '你是一个情侣默契挑战的出题助手。请生成一道有趣的情侣默契题目。返回纯 JSON，不要 markdown 代码块：\n{"type":"choice或who或fill","q":"题目","options":["选项1"...],"category":"标签"}\n选择题 4 选项，who 题选项固定 ["我","TA"]，fill 题选项为空。要有新意。';
-  var text = await callDeepSeek([{ role: 'system', content: '只返回纯 JSON。' }, { role: 'user', content: prompt }], apiKey, 400);
+  var prompt = '你是一个充满诗意和想象力的情侣游戏出题助手。为异地恋情侣生成一道有趣、有深度、不走寻常路的题目。\n\n要求：\n- 随机选择题目类型：选择题(choice)、谁更可能(who)、填空题(fill)\n- 选择题需要 4 个有画面感的选项\n- "谁更可能"题选项固定为 ["我", "TA"]\n- 填空题不需要选项\n- 题目要有诗意、想象力、独特，不要老套的"最喜欢什么颜色"这种\n- 可以涉及：命运的相遇、时间的意义、记忆的碎片、共同的未来、灵魂的共鸣、日常中的诗意、假设性的幻想、抽象的情感比喻\n- category 字段用中文标签\n\n返回纯 JSON，不要 markdown：\n{"type":"choice或who或fill","q":"题目","options":["选项1"...],"category":"标签"}';
+  var text = await callDeepSeek([{ role: 'system', content: '你是一个富有诗意和创造力的出题人。只返回纯 JSON，不要任何其他文字。你的题目要有深度、有画面感、能触动人心。' }, { role: 'user', content: prompt }], apiKey, 500);
   var json = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '');
   return JSON.parse(json);
 }
 
 async function generateAICommentary(question, answers, apiKey) {
   var list = Object.values(answers).map(function (a) { return a.nickname + '：' + a.answer; }).join('\n');
-  var prompt = '题目：' + question.q + '\n\n回答：\n' + list + '\n\n用 2-3 句甜趣暖心点评。';
-  return callDeepSeek([{ role: 'system', content: '温暖幽默的恋爱观察员。' }, { role: 'user', content: prompt }], apiKey, 250);
+  var prompt = '题目：' + question.q + '\n\n回答：\n' + list + '\n\n用像诗一样的语言，温柔地点评他们回答里藏着的深情。2-3 句，有画面感。';
+  return callDeepSeek([{ role: 'system', content: '你是温柔的情感观察者，用诗意语言点评情侣之间的默契。' }, { role: 'user', content: prompt }], apiKey, 300);
 }
 
 async function generateAISummary(history, players, apiKey) {
@@ -44,7 +44,7 @@ async function generateAISummary(history, players, apiKey) {
     Object.values(item.answers).forEach(function (a) { rounds += '  ' + a.nickname + '：' + a.answer + '\n'; });
   });
   var names = Object.values(players).map(function (p) { return p.nickname; }).join(' 和 ');
-  return callDeepSeek([{ role: 'system', content: '温暖真诚的情感写作者。' }, { role: 'user', content: '玩家：' + names + '\n问答：\n' + rounds + '\n写 120 字暖心总结。' }], apiKey, 400);
+  return callDeepSeek([{ role: 'system', content: '你是温柔而深邃的情感写作者。用诗意的语言为情侣游戏写总结，像来自星空的情书。' }, { role: 'user', content: '玩家：' + names + '\n问答：\n' + rounds + '\n写 150 字诗意暖心总结，要有画面感和情感深度。' }], apiKey, 500);
 }
 
 // ===================== 游戏模式 =====================
@@ -67,69 +67,7 @@ var THEMES = {
   ai:       { name: '🤖 AI 智能出题', desc: 'DeepSeek 实时生成', icon: '🤖' },
 };
 
-var QUESTION_BANK = {
-  food: [
-    { type: 'choice', q: '下次见面第一顿最想一起吃什么？', options: ['火锅', '日料', '路边摊小吃', '在家一起做'] },
-    { type: 'choice', q: 'TA 最可能挑食的食物是？', options: ['香菜', '胡萝卜', '青椒', 'TA 不挑食'] },
-    { type: 'who',    q: '谁做饭更好吃？', options: ['我', 'TA'] },
-    { type: 'choice', q: '深夜饿了，你更想和 TA 一起吃什么？', options: ['泡面配鸡蛋', '烧烤摊', '冰箱剩菜瞎凑合', '点外卖'] },
-    { type: 'fill',   q: '你吃过 TA 做的（或描述过的）最好吃的东西是什么？', options: [] },
-    { type: 'choice', q: '如果一起开一家店，你们想开什么？', options: ['甜品店', '深夜食堂', '咖啡书店', '奶茶店'] },
-    { type: 'who',    q: '谁更容易把厨房炸了？', options: ['我', 'TA'] },
-    { type: 'choice', q: '一起逛超市，TA 最可能先冲向哪个区？', options: ['零食区', '水果区', '熟食区', '酒水区'] },
-    { type: 'fill',   q: '说出 TA 最爱吃的一个东西，要具体到怎么做的', options: [] },
-    { type: 'choice', q: '如果 TA 给你做了一顿饭，你觉得会是什么菜？', options: ['番茄炒蛋', '牛排红酒', '一锅乱炖', '就...一碗面'] },
-  ],
-  travel: [
-    { type: 'choice', q: '如果能一起去旅行，第一站去哪儿？', options: ['海边度假', '古城小巷', '雪山温泉', '繁华都市'] },
-    { type: 'choice', q: 'TA 最想和你在旅途中做什么？', options: ['一起看日出', '逛当地集市', '躺在酒店不出去', '拍一大堆照片'] },
-    { type: 'who',    q: '谁更可能迷路？', options: ['我', 'TA'] },
-    { type: 'choice', q: '旅行中，TA 更可能在什么东西上花钱？', options: ['美食', '纪念品', '体验项目', '住宿'] },
-    { type: 'fill',   q: '如果只带一件东西，你觉得 TA 会给你们的旅行带什么？', options: [] },
-    { type: 'who',    q: '谁收拾行李更快？', options: ['我', 'TA'] },
-    { type: 'choice', q: '旅行的方式，你们更倾向哪种？', options: ['特种兵式打卡', '慢悠悠闲逛', '跟着感觉走', '提前规划每一站'] },
-    { type: 'fill',   q: '你最想和 TA 一起去的城市是哪里？', options: [] },
-    { type: 'choice', q: '旅途中 TA 最可能说什么？', options: ['"好美啊！"', '"好累啊..."', '"这个好好吃！"', '"我们再待一天吧"'] },
-    { type: 'who',    q: '谁拍照更好看？', options: ['我', 'TA'] },
-  ],
-  love: [
-    { type: 'fill',   q: '用三个词形容 TA 在你心里的样子', options: [] },
-    { type: 'choice', q: '你觉得哪种方式最浪漫？', options: ['睡前互道晚安', '突然收到 TA 点的外卖', 'TA 记住你随口说的话', '一起规划下次见面'] },
-    { type: 'fill',   q: 'TA 做过的哪件小事，让你觉得"就是这个人了"？', options: [] },
-    { type: 'who',    q: '谁先心动的？', options: ['我', 'TA'] },
-    { type: 'choice', q: '你更希望收到什么礼物？', options: ['一封手写信', '一个惊喜包裹', '一首 TA 唱的歌', '一起的合照拼图'] },
-    { type: 'fill',   q: '第一次见到 TA 时，你心里在想什么？', options: [] },
-    { type: 'who',    q: '谁更爱撒娇？', options: ['我', 'TA'] },
-    { type: 'choice', q: '你觉得 TA 最喜欢你的什么？', options: ['性格', '外表', '才华', '对我好的方式'] },
-    { type: 'fill',   q: '如果有超能力，你最想为 TA 做什么？', options: [] },
-    { type: 'who',    q: '谁更可能突然给对方惊喜？', options: ['我', 'TA'] },
-  ],
-  daily: [
-    { type: 'choice', q: '宅在家的时候，TA 更想干嘛？', options: ['一起追剧', '各玩各的', '一起做饭', '打游戏'] },
-    { type: 'choice', q: '下雨天最想 TA 在你身边做什么？', options: ['窝在沙发聊天', '一起听雨发呆', '煮一壶热茶', '打伞散步'] },
-    { type: 'who',    q: '谁更可能睡过头？', options: ['我', 'TA'] },
-    { type: 'choice', q: '如果一起住，家务怎么分？', options: ['我做清洁 TA 做饭', 'TA 全包（我想得美）', '我全包（TA 想得美）', '一起干，谁也别逃'] },
-    { type: 'fill',   q: '描述一下：和 TA 住在一起的第一天早上，是什么画面？', options: [] },
-    { type: 'who',    q: '谁更可能把东西弄丢？', options: ['我', 'TA'] },
-    { type: 'choice', q: '晚上睡不着，你更希望 TA 怎么做？', options: ['打电话陪你聊', '给你讲故事', '陪你看剧到睡着', 'TA 睡你的，不用管我'] },
-    { type: 'who',    q: '谁更可能在电影院睡着？', options: ['我', 'TA'] },
-    { type: 'fill',   q: '你觉得 TA 最需要被照顾的一个瞬间是什么？', options: [] },
-    { type: 'choice', q: 'TA 在家最可能躺在哪？', options: ['沙发上刷手机', '床上不起来', '地毯上瘫着', '厨房站着吃东西'] },
-  ],
-  deeptalk: [
-    { type: 'fill',   q: '异地这段时间，你学到最重要的一件事是什么？', options: [] },
-    { type: 'fill',   q: '你觉得十年后的你们，会在哪里、在做什么？', options: [] },
-    { type: 'choice', q: '吵架了，你觉得什么方式最能让你们和好？', options: ['一个人先服软', '冷静后好好聊', '一个拥抱就够了', '发一个搞笑表情包'] },
-    { type: 'fill',   q: '你最想对 TA 说但一直没说出口的一句话是什么？', options: [] },
-    { type: 'choice', q: '你觉得一段感情里最重要的是什么？', options: ['信任', '沟通', '陪伴', '一起成长'] },
-    { type: 'fill',   q: '你觉得你们最默契的一个瞬间是什么？', options: [] },
-    { type: 'who',    q: '谁更记不住纪念日？', options: ['我', 'TA'] },
-    { type: 'choice', q: '你觉得你们在一起最大的变化是什么？', options: ['变温柔了', '变幼稚了', '变勇敢了', '变得更像对方了'] },
-    { type: 'fill',   q: '给 3 个月后的 TA 写一句话吧', options: [] },
-    { type: 'who',    q: '吵架时谁先道歉？', options: ['我', 'TA'] },
-  ],
-};
-
+var QUESTION_BANK = require("./questions.js");
 var CHALLENGES = [
   { text: '给对方发一段语音："你今天真好看"', emoji: '🎙️' },
   { text: '截屏这个画面，发给对方', emoji: '📸' },
