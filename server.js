@@ -1125,6 +1125,15 @@ function finishMonopoly(room, winnerId) {
 }
 
 var PORT = process.env.PORT || 7860;
+
+// 公网隧道（仅本地启动时使用）
+try {
+  var lt = require('localtunnel');
+  lt({ port: PORT }).then(function (tunnel) {
+    console.log('公网: ' + tunnel.url);
+  }).catch(function () {});
+} catch (e) {}
+
 server.listen(PORT, function () {
   console.log('💞 情侣小游戏 http://localhost:' + PORT);
 });
