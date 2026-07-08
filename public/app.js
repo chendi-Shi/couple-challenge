@@ -159,14 +159,17 @@ $('#btn-back-rp').addEventListener('click', goLobby);
 
 // ==================== Draw ====================
 var drawColor = '#333';
-var drawCanvas = $('#draw-canvas');
+var drawCanvas = null;
 var drawCtx = null;
 var isDrawing = false;
 var isDrawer = false;
+var _lastDrawEmit = 0;
 
 function initCanvas() {
+  var drawCanvas = $('#draw-canvas');
   if (!drawCanvas) return;
   drawCtx = drawCanvas.getContext('2d');
+  if (!drawCtx) return;
   drawCtx.lineWidth = 3; drawCtx.lineCap = 'round'; drawCtx.strokeStyle = drawColor;
 
   drawCanvas.addEventListener('mousedown', function (e) {
@@ -181,7 +184,8 @@ function initCanvas() {
     var r = drawCanvas.getBoundingClientRect();
     var x = e.clientX - r.left, y = e.clientY - r.top;
     drawCtx.lineTo(x, y); drawCtx.stroke();
-    socket.emit('draw_line', { x: x, y: y, color: drawColor, isStart: false });
+    var now = Date.now();
+    if (now - _lastDrawEmit > 50) { _lastDrawEmit = now; socket.emit('draw_line', { x: x, y: y, color: drawColor, isStart: false }); }
   });
   drawCanvas.addEventListener('mouseup', function () { isDrawing = false; });
   drawCanvas.addEventListener('mouseleave', function () { isDrawing = false; });
@@ -198,7 +202,8 @@ function initCanvas() {
     var r = drawCanvas.getBoundingClientRect(); var t = e.touches[0];
     var x = t.clientX - r.left, y = t.clientY - r.top;
     drawCtx.lineTo(x, y); drawCtx.stroke();
-    socket.emit('draw_line', { x: x, y: y, color: drawColor, isStart: false });
+    var now = Date.now();
+    if (now - _lastDrawEmit > 50) { _lastDrawEmit = now; socket.emit('draw_line', { x: x, y: y, color: drawColor, isStart: false }); }
   });
   drawCanvas.addEventListener('touchend', function () { isDrawing = false; });
 }
@@ -432,7 +437,13 @@ socket.on('draw_finished', function (data) {
   spawnConfetti();
 });
 
-socket.on('partner_left', function () { toast('TA 离开了房间 😢'); show('lobby'); });
+socket.on('partner_left', function () {
+  toast('TA 离开了房间 😢');
+  selectedGame = 'quiz';
+  selectedTheme = 'random';
+  roomId = ''; myRole = '';
+  show('lobby');
+});
 
 // ====== Waiting room ======
 function updateWaiting(room) {
@@ -479,13 +490,39 @@ function spawnConfetti() {
 
 document.addEventListener('keydown', function (e) {
   if (e.key !== 'Enter') return;
-  if ($('#lobby').classList.contains('active')) { if ($('#tab-create').classList.contains('active')) $('#btn-create').click(); else $('#btn-join').click(); }
-  if ($('#quiz-playing').classList.contains('active') && $('#fill-answer').style.display !== 'none') $('#btn-submit-fill').click();
-  if ($('#quiz-result').classList.contains('active')) $('#btn-next-quiz').click();
-  if ($('#story-playing').classList.contains('active') && !$('#story-input').disabled) $('#btn-submit-story').click();
-  if ($('#wishlist-playing').classList.contains('active') && !$('#wl-input').disabled) $('#btn-submit-wish').click();
-  if ($('#wishlist-reveal').classList.contains('active')) $('#btn-next-wish').click();
-  if ($('#roleplay-playing').classList.contains('active') && !$('#rp-input').disabled) $('#btn-submit-rp').click();
-  if ($('#roleplay-reveal').classList.contains('active')) $('#btn-next-rp').click();
-  if ($('#draw-playing').classList.contains('active') && !isDrawer) { var gi = $('#guess-input'); if (gi && gi.value.trim()) $('#btn-submit-guess').click(); }
+  try {
+    var lobby = $('#lobby');
+    if (lobby && lobby.classList.contains('active')) { if ($('#tab-create').classList.contains('active')) $('#btn-create').click(); else $('#btn-join').click(); }
+    var qp = $('#quiz-playing');
+    if (qp && qp.classList.contains('active')) {
+      var fa = $('#fill-answer');
+      if (fa && fa.style.display !== 'none') $('#btn-submit-fill').click();
+    }
+    var qr = $('#quiz-result');
+    if (qr && qr.classList.contains('active')) $('#btn-next-quiz').click();
+    var sp = $('#story-playing');
+    if (sp && sp.classList.contains('active')) {
+      var si = $('#story-input');
+      if (si && !si.disabled) $('#btn-submit-story').click();
+    }
+    var wp = $('#wishlist-playing');
+    if (wp && wp.classList.contains('active')) {
+      var wi = $('#wl-input');
+      if (wi && !wi.disabled) $('#btn-submit-wish').click();
+    }
+    var wr = $('#wishlist-reveal');
+    if (wr && wr.classList.contains('active')) $('#btn-next-wish').click();
+    var rp = $('#roleplay-playing');
+    if (rp && rp.classList.contains('active')) {
+      var ri = $('#rp-input');
+      if (ri && !ri.disabled) $('#btn-submit-rp').click();
+    }
+    var rr = $('#roleplay-reveal');
+    if (rr && rr.classList.contains('active')) $('#btn-next-rp').click();
+    var dp = $('#draw-playing');
+    if (dp && dp.classList.contains('active') && !isDrawer) {
+      var gi = $('#guess-input');
+      if (gi && gi.value.trim()) $('#btn-submit-guess').click();
+    }
+  } catch (ex) { /* ignore enter key errors */ }
 });

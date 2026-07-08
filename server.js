@@ -136,6 +136,25 @@ function shuffle(arr) {
   return a;
 }
 
+// XSS sanitize: escape HTML in user input
+function esc(s) {
+  return (s || '').toString()
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#x27;');
+}
+
+// Room GC: clean rooms older than 2 hours with no players
+function roomGC() {
+  var now = Date.now();
+  for (var rid in rooms) {
+    var r = rooms[rid];
+    if (Object.keys(r.players).length === 0 && now - r._createdAt > 7200000) {
+      delete rooms[rid];
+    }
+  }
+}
+setInterval(roomGC, 600000); // every 10 min
+
 // ===================== 房间 =====================
 var rooms = {};
 var TOTAL_ROUNDS = 5;
@@ -168,32 +187,34 @@ var DRAW_WORDS = [
 ];
 
 function createRoom(roomName, hostName, gameMode, themeKey, apiKey) {
+  var cleanRoom = (roomName || '甜蜜小屋').toString().substring(0, 30);
+  var cleanHost = (hostName || '').toString().substring(0, 15);
   return {
-    name: roomName,
+    name: cleanRoom,
     players: {},
     gameMode: gameMode || 'quiz',
     theme: themeKey || 'random',
-    apiKey: apiKey || '',
+    apiKey: (apiKey || '').toString().substring(0, 80),
     round: 0,
     totalRounds: TOTAL_ROUNDS,
     state: 'waiting',
     questions: [],
     roundHistory: [],
     challengeInjected: false,
-    // story
     storyLines: [],
     storyPrompt: '',
-    // wishlist
     wishlistItems: [],
     wishlistPrompts: [],
-    // roleplay
     roleplayScenarios: [],
     roleplayAnswers: {},
-    // draw
     drawWords: [],
     drawRound: 0,
     drawWord: '',
     drawDrawer: '',
+    // guards against race conditions
+    _quizLocked: false,
+    _storyLocked: false,
+    _createdAt: Date.now(),
   };
 }
 
@@ -217,9 +238,13 @@ async function pickQuestion(room) {
   } else {
     pool = QUESTION_BANK[room.theme] || [];
   }
+  // Fallback: if theme pool is empty, use all questions
+  if (pool.length === 0) {
+    for (var k2 in QUESTION_BANK) { pool = pool.concat(QUESTION_BANK[k2]); }
+  }
   var used = new Set(room.questions);
   var available = pool.filter(function (q, i) { return !used.has(room.theme + '_' + i); });
-  if (available.length === 0) { room.questions = []; return pool[Math.floor(Math.random() * pool.length)]; }
+  if (available.length === 0) { room.questions = []; available = pool; }
   var q = available[Math.floor(Math.random() * available.length)];
   room.questions.push(room.theme + '_' + pool.indexOf(q));
   return q;
@@ -272,7 +297,7 @@ io.on('connection', function (socket) {
     room.challengeInjected = false;
     room.totalRounds = TOTAL_ROUNDS;
     Object.values(room.players).forEach(function (p) { p.score = 0; p.streak = 0; });
-    nextQuizRound(room);
+    nextQuizRound(room).catch(function (e) { console.error('start_game quiz error:', e.message); });
   });
 
   // ====== 提交答案（quiz） ======
@@ -280,11 +305,13 @@ io.on('connection', function (socket) {
     var room = getRoom(socket);
     if (!room || room.state !== 'playing') return;
     if (room.gameMode !== 'quiz') return;
+    // Guard: already submitted
+    if (room._answers && room._answers[socket.id]) return;
     room._answers = room._answers || {};
-    room._answers[socket.id] = answer;
-    io.to(socket.data.roomId).emit('player_answered', { playerId: socket.id, nickname: socket.data.nickname });
+    room._answers[socket.id] = esc(answer);
+    io.to(socket.data.roomId).emit('player_answered', { playerId: socket.id, nickname: esc(socket.data.nickname) });
     if (Object.keys(room.players).every(function (pid) { return room._answers[pid]; })) {
-      revealQuizRound(room);
+      revealQuizRound(room).catch(function (e) { console.error('revealQuizRound error:', e.message); });
     }
   });
 
@@ -293,19 +320,25 @@ io.on('connection', function (socket) {
     var room = getRoom(socket);
     if (!room || room.state !== 'playing') return;
     if (room.gameMode !== 'quiz') return;
+    // Guard: only proceed if both have submitted (prevent double-click skip)
+    if (!room._answers || !Object.keys(room.players).every(function (pid) { return room._answers[pid]; })) return;
     room._answers = {};
-    nextQuizRound(room);
+    nextQuizRound(room).catch(function (e) { console.error('nextQuizRound error:', e.message); });
   });
 
   // ====== 故事接龙 - 提交一句 ======
   socket.on('submit_story_line', function (text) {
     var room = getRoom(socket);
     if (!room || room.state !== 'playing' || room.gameMode !== 'story') return;
+    // Guard: double-submit
+    if (room._storyLocked) return;
     var pids = Object.keys(room.players);
     var turnIdx = room.storyLines.length % 2;
-    if (socket.id !== pids[turnIdx]) return; // 不是你的回合
-    room.storyLines.push({ nickname: socket.data.nickname, text: text.trim() });
+    if (socket.id !== pids[turnIdx]) return;
+    room._storyLocked = true;
+    room.storyLines.push({ nickname: esc(socket.data.nickname), text: esc(text).substring(0, 200) });
     room.round = room.storyLines.length;
+    room._storyLocked = false;
 
     if (room.storyLines.length >= STORY_ROUNDS) {
       finishStory(room);
@@ -318,8 +351,8 @@ io.on('connection', function (socket) {
         totalRounds: STORY_ROUNDS,
         currentRound: room.storyLines.length + 1,
         turnPlayerId: nextPid,
-        turnNickname: room.players[nextPid].nickname,
-        lastNickname: socket.data.nickname,
+        turnNickname: esc(room.players[nextPid].nickname),
+        lastNickname: esc(socket.data.nickname),
       });
     }
   });
@@ -328,10 +361,10 @@ io.on('connection', function (socket) {
   socket.on('submit_wish', function (text) {
     var room = getRoom(socket);
     if (!room || room.state !== 'playing' || room.gameMode !== 'wishlist') return;
+    if (room._answers && room._answers[socket.id]) return;
     room._answers = room._answers || {};
-    room._answers[socket.id] = text.trim();
-    io.to(socket.data.roomId).emit('player_answered', { playerId: socket.id, nickname: socket.data.nickname });
-
+    room._answers[socket.id] = esc(text).substring(0, 200);
+    io.to(socket.data.roomId).emit('player_answered', { playerId: socket.id, nickname: esc(socket.data.nickname) });
     if (Object.keys(room.players).every(function (pid) { return room._answers[pid]; })) {
       revealWishlistRound(room);
     }
@@ -341,6 +374,7 @@ io.on('connection', function (socket) {
   socket.on('wishlist_next', function () {
     var room = getRoom(socket);
     if (!room || room.state !== 'playing' || room.gameMode !== 'wishlist') return;
+    if (!room._answers || !Object.keys(room.players).every(function (pid) { return room._answers[pid]; })) return;
     room._answers = {};
     nextWishlistRound(room);
   });
@@ -349,9 +383,10 @@ io.on('connection', function (socket) {
   socket.on('submit_roleplay', function (text) {
     var room = getRoom(socket);
     if (!room || room.state !== 'playing' || room.gameMode !== 'roleplay') return;
+    if (room.roleplayAnswers && room.roleplayAnswers[socket.id]) return;
     room.roleplayAnswers = room.roleplayAnswers || {};
-    room.roleplayAnswers[socket.id] = text.trim();
-    io.to(socket.data.roomId).emit('player_answered', { playerId: socket.id, nickname: socket.data.nickname });
+    room.roleplayAnswers[socket.id] = esc(text).substring(0, 200);
+    io.to(socket.data.roomId).emit('player_answered', { playerId: socket.id, nickname: esc(socket.data.nickname) });
     if (Object.keys(room.players).every(function (pid) { return room.roleplayAnswers[pid]; })) {
       revealRoleplay(room);
     }
@@ -360,6 +395,7 @@ io.on('connection', function (socket) {
   socket.on('roleplay_next', function () {
     var room = getRoom(socket);
     if (!room || room.state !== 'playing' || room.gameMode !== 'roleplay') return;
+    if (!room.roleplayAnswers || !Object.keys(room.players).every(function (pid) { return room.roleplayAnswers[pid]; })) return;
     room.roleplayAnswers = {};
     nextRoleplayRound(room);
   });
@@ -383,23 +419,26 @@ io.on('connection', function (socket) {
     var room = getRoom(socket);
     if (!room || room.state !== 'playing' || room.gameMode !== 'draw') return;
     if (!room.drawWord) return;
-    var correct = guess.trim() === room.drawWord;
+    // Guard: already guessed correctly this round
+    if (room._guessCorrect) return;
+    var g = esc(guess).substring(0, 30);
+    var correct = g === room.drawWord;
     var rid = socket.data.roomId;
     if (correct) {
-      // 猜对了
+      room._guessCorrect = true;
       var pids = Object.keys(room.players);
       var drawerPid = room.drawDrawer;
       var guesserPid = pids.find(function (pid) { return pid !== drawerPid; });
       if (guesserPid) room.players[guesserPid].score = (room.players[guesserPid].score || 0) + 1;
       io.to(rid).emit('guess_result', {
-        correct: true, guess: guess.trim(),
-        guesser: socket.data.nickname, word: room.drawWord,
+        correct: true, guess: g,
+        guesser: esc(socket.data.nickname), word: room.drawWord,
       });
       io.to(rid).emit('room_update', roomInfo(room, rid));
     } else {
       io.to(rid).emit('guess_result', {
-        correct: false, guess: guess.trim(),
-        guesser: socket.data.nickname,
+        correct: false, guess: g,
+        guesser: esc(socket.data.nickname),
       });
     }
   });
@@ -407,6 +446,9 @@ io.on('connection', function (socket) {
   socket.on('draw_next', function () {
     var room = getRoom(socket);
     if (!room || room.state !== 'playing' || room.gameMode !== 'draw') return;
+    // Guard: prevent skip if round not complete
+    if (!room._guessCorrect) return;
+    room._guessCorrect = false;
     room.drawRound++;
     if (room.drawRound > DRAW_ROUNDS) {
       finishDraw(room);
@@ -442,13 +484,18 @@ io.on('connection', function (socket) {
   socket.on('disconnect', function () {
     var room = getRoom(socket);
     if (!room) return;
-    var rid = socket.data.roomId;
+    var rid = socket.data ? socket.data.roomId : '';
+    if (!rid) return;
     delete room.players[socket.id];
     if (Object.keys(room.players).length === 0) {
       delete rooms[rid];
     } else {
+      var wasPlaying = room.state === 'playing';
       room.state = 'waiting';
       room._answers = {};
+      room._quizLocked = false;
+      room._storyLocked = false;
+      room._guessCorrect = false;
       io.to(rid).emit('partner_left');
       io.to(rid).emit('room_update', roomInfo(room, rid));
     }
@@ -689,8 +736,8 @@ function startDraw(room) {
   room.state = 'playing';
   room.drawRound = 0;
   room.drawWords = [];
+  room._guessCorrect = false;
   Object.values(room.players).forEach(function (p) { p.score = 0; });
-  room.drawRound = 0;
   startDrawRound(room);
 }
 
