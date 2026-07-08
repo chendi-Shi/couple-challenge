@@ -13,6 +13,9 @@ var GAME_MODES = [
   { key: 'wishlist', icon: '📋', name: '愿望清单', desc: '写下想一起做的事' },
   { key: 'roleplay', icon: '🎭', name: '情景扮演', desc: '给场景各自演一段' },
   { key: 'draw',     icon: '🎨', name: '你画我猜', desc: '一人画一人猜' },
+  { key: 'spy',      icon: '🃏', name: '谁是卧底', desc: '描述相似的词猜对方词' },
+  { key: 'truthlie', icon: '🕵️', name: '真假日常', desc: '写三件事TA猜哪件假的' },
+  { key: 'monopoly', icon: '🎲', name: '恋爱飞行棋', desc: '掷骰子走格子做任务' },
 ];
 
 var THEMES = [
@@ -234,6 +237,47 @@ $('#btn-next-dr').addEventListener('click', function () {
 $('#btn-again-dr').addEventListener('click', function () { socket.emit('play_again'); show('waiting'); });
 $('#btn-back-dr').addEventListener('click', goLobby);
 
+// ==================== Spy ====================
+$('#btn-submit-sy').addEventListener('click', function () {
+  var v = $('#sy-input').value.trim();
+  if (!v) return toast('描述一下你的词吧～');
+  socket.emit('spy_describe', v);
+  $('#sy-input').value = ''; $('#sy-input').disabled = true; $('#btn-submit-sy').disabled = true;
+});
+$('#btn-sy-guess').addEventListener('click', function () {
+  var v = $('#sy-guess').value.trim();
+  if (!v) return toast('猜一个词吧～');
+  socket.emit('spy_guess', v);
+  $('#btn-sy-guess').disabled = true; $('#sy-guess').disabled = true;
+  $('#sy-status-me').textContent = '👤 你：已提交'; $('#sy-status-me').classList.add('done');
+});
+$('#btn-again-sy').addEventListener('click', function () { socket.emit('play_again'); show('waiting'); });
+$('#btn-back-sy').addEventListener('click', goLobby);
+
+// ==================== TruthLie ====================
+$('#btn-submit-tl-items').addEventListener('click', function () {
+  var items = [$('#tl-item1').value.trim(), $('#tl-item2').value.trim(), $('#tl-item3').value.trim()];
+  if (!items[0] || !items[1] || !items[2]) return toast('三件事都要填哦～');
+  socket.emit('truthlie_submit', items);
+  $('#btn-submit-tl-items').disabled = true;
+  $('#tl-status-me').textContent = '👤 你：已提交'; $('#tl-status-me').classList.add('done');
+});
+$('#btn-next-tl').addEventListener('click', function () { socket.emit('truthlie_next'); });
+$('#btn-again-rp').addEventListener('click', function () { socket.emit('play_again'); show('waiting'); });
+
+// ==================== Monopoly ====================
+$('#btn-mono-roll').addEventListener('click', function () {
+  socket.emit('monopoly_roll');
+  $('#btn-mono-roll').disabled = true;
+});
+$('#btn-mono-next').addEventListener('click', function () {
+  $('#btn-mono-roll').disabled = false;
+  $('#btn-mono-next').style.display = 'none';
+  $('#mono-card').style.display = 'none';
+});
+$('#btn-again-mo').addEventListener('click', function () { socket.emit('play_again'); show('waiting'); });
+$('#btn-back-mo').addEventListener('click', goLobby);
+
 // ==================== Socket Events ====================
 
 socket.on('room_update', function (room) { updateWaiting(room); });
@@ -437,6 +481,147 @@ socket.on('draw_finished', function (data) {
   spawnConfetti();
 });
 
+// --- Spy ---
+socket.on('spy_start', function (data) {
+  show('spy-playing');
+  $('#sy-word').textContent = data.word;
+  $('#sy-round').textContent = data.round; $('#sy-total').textContent = data.totalRounds;
+  $('#sy-log').innerHTML = '';
+  var myTurn = data.speakerId === socket.id;
+  $('#sy-turn-hint').innerHTML = myTurn ? '✏️ <b>该你描述了！</b>' : '⏳ 等待 <b>' + data.speakerName + '</b> 描述...';
+  $('#sy-input').disabled = !myTurn; $('#btn-submit-sy').disabled = !myTurn;
+  if (myTurn) { $('#sy-input').value = ''; $('#sy-input').focus(); }
+});
+
+socket.on('spy_update', function (data) {
+  show('spy-playing');
+  $('#sy-round').textContent = data.round; $('#sy-total').textContent = data.totalRounds;
+  $('#sy-log').innerHTML = data.descriptions.map(function (d) {
+    return '<div class="spy-desc-item"><span class="story-author">' + d.nickname + '</span>' + d.text + '</div>';
+  }).join('');
+  var myTurn = data.speakerId === socket.id;
+  $('#sy-turn-hint').innerHTML = myTurn ? '✏️ <b>该你描述了！</b>' : '⏳ 等待 <b>' + data.speakerName + '</b> 描述...';
+  $('#sy-input').disabled = !myTurn; $('#btn-submit-sy').disabled = !myTurn;
+  if (myTurn) { $('#sy-input').value = ''; $('#sy-input').focus(); }
+});
+
+socket.on('spy_reveal', function (data) {
+  show('spy-reveal');
+  $('#sy-desc-all').innerHTML = data.descriptions.map(function (d) {
+    return '<div class="spy-desc-item"><span class="story-author">' + d.nickname + '</span>' + d.text + '</div>';
+  }).join('');
+  $('#sy-status-me').textContent = '👤 你：等待中'; $('#sy-status-me').classList.remove('done');
+  $('#sy-status-partner').textContent = '❤️ TA：等待中'; $('#sy-status-partner').classList.remove('done');
+  $('#sy-guess').disabled = false; $('#btn-sy-guess').disabled = false; $('#sy-guess').value = '';
+});
+
+socket.on('spy_finished', function (data) {
+  show('spy-finished');
+  $('#sy-verdict').textContent = '你们的词是——';
+  var words = data.words;
+  var names = Object.keys(words);
+  $('#sy-results').innerHTML = names.map(function (name) {
+    return '<div class="score-row"><span class="name">' + name + '</span><span class="score" style="font-size:18px">🎯 ' + words[name] + '</span></div>';
+  }).join('') + '<div style="margin-top:8px">' + data.results.map(function (r) {
+    return '<div class="score-row"><span class="name">' + r.nickname + ' 猜：' + r.guess + '</span><span>' + (r.correct ? '✅ 对了！' : '❌ 没猜中') + '</span></div>';
+  }).join('') + '</div>';
+  spawnConfetti();
+});
+
+// --- TruthLie ---
+socket.on('truthlie_round', function (data) {
+  show('truthlie-write');
+  $('#tl-round').textContent = data.round; $('#tl-total').textContent = data.totalRounds;
+  $('#tl-status-me').textContent = '👤 你：等待中'; $('#tl-status-me').classList.remove('done');
+  $('#tl-status-partner').textContent = '❤️ TA：等待中'; $('#tl-status-partner').classList.remove('done');
+  $('#btn-submit-tl-items').disabled = false;
+  $('#tl-item1').value = ''; $('#tl-item2').value = ''; $('#tl-item3').value = '';
+  $('#tl-item1').disabled = false; $('#tl-item2').disabled = false; $('#tl-item3').disabled = false;
+});
+
+socket.on('truthlie_pick_lie', function () {
+  show('truthlie-pick-lie');
+  var myItems = [document.getElementById('tl-item1').value, document.getElementById('tl-item2').value, document.getElementById('tl-item3').value];
+  var g = $('#tl-pick-options'); g.innerHTML = '';
+  myItems.forEach(function (item, i) {
+    var b = document.createElement('button'); b.className = 'option-btn'; b.textContent = item;
+    b.addEventListener('click', function () { socket.emit('truthlie_lie_idx', i); g.querySelectorAll('.option-btn').forEach(function (x) { x.style.pointerEvents = 'none'; }); });
+    g.appendChild(b);
+  });
+});
+
+socket.on('truthlie_guess_phase', function (data) {
+  show('truthlie-guess');
+  $('#tl-guess-title').textContent = data.items.nickname + ' 做了这三件事，哪件是假的？';
+  var g = $('#tl-guess-options'); g.innerHTML = '';
+  data.items.items.forEach(function (item, i) {
+    var b = document.createElement('button'); b.className = 'option-btn'; b.textContent = item;
+    b.addEventListener('click', function () { socket.emit('truthlie_guess', i); g.querySelectorAll('.option-btn').forEach(function (x) { x.style.pointerEvents = 'none'; }); });
+    g.appendChild(b);
+  });
+});
+
+socket.on('truthlie_reveal', function (data) {
+  show('truthlie-reveal');
+  var r = data.results[0];
+  var allCorrect = r.correct;
+  $('#tl-result-icon').textContent = allCorrect ? '🎯' : '🤔';
+  $('#tl-result-text').textContent = allCorrect ? '猜对了！火眼金睛' : r.nickname + '的谎言是：' + r.lieText;
+  $('#tl-detail').innerHTML = r.items.map(function (item, i) {
+    var mark = i === r.lieIdx ? ' 🎯 假的！' : ' ✅ 真的';
+    return '<div class="wl-ans-line">' + mark + ' ' + item + '</div>';
+  }).join('');
+  if (data.results.length > 1) {
+    var r2 = data.results[1];
+    $('#tl-detail').innerHTML += '<hr><div class="wl-ans-line"><b>' + r2.nickname + '</b> 的谎言：' + r2.lieText + '</div>';
+    $('#tl-result-icon').textContent = (r.correct && r2.correct) ? '🔥' : (r.correct || r2.correct) ? '👍' : '🤔';
+  }
+  spawnConfetti();
+});
+
+socket.on('truthlie_finished', function () {
+  show('truthlie-reveal');
+  $('#btn-next-tl').style.display = 'none';
+});
+
+// --- Monopoly ---
+socket.on('monopoly_start', function (data) {
+  show('monopoly-playing');
+  $('#mono-board').innerHTML = data.players.map(function (p) {
+    return '<div class="mono-token" style="left:' + (3 + p.pos * 94) + '%;background:' + p.color + '" title="' + p.name + '">' + p.name.substring(0, 1) + '</div>';
+  }).join('') + '<div class="mono-track"></div>';
+  $('#mono-status').innerHTML = '🎯 ' + data.firstPlayerName + ' 先掷骰子！';
+  $('#btn-mono-roll').disabled = false;
+  $('#btn-mono-next').style.display = 'none';
+  $('#mono-card').style.display = 'none';
+});
+
+socket.on('monopoly_update', function (data) {
+  $('#mono-status').innerHTML = '🎲 ' + data.playerName + ' 掷出了 <b>' + data.dice + '</b> 点！到了第 ' + (data.pos + 1) + ' 格';
+  $('#mono-board').querySelectorAll('.mono-token').forEach(function (t, i) {
+    var pos = i === 0 ? data.pos : data.posOther;
+    t.style.left = (3 + pos * 94 / (data.total - 1)) + '%';
+  });
+  var sq = data.square;
+  $('#mono-card').style.display = 'block';
+  $('#mono-card-icon').textContent = sq.icon;
+  $('#mono-card-text').textContent = sq.text;
+  if (sq.type === 'a') $('#mono-card-text').innerHTML += '<br><small style="color:#999">（动作卡——做了就是胜利）</small>';
+  else if (sq.type === 'q') $('#mono-card-text').innerHTML += '<br><small style="color:#999">（问题卡——认真回答哦）</small>';
+  if (data.playerId !== socket.id) {
+    $('#btn-mono-roll').disabled = true;
+  } else {
+    $('#btn-mono-roll').disabled = false;
+  }
+  $('#btn-mono-next').style.display = 'block';
+});
+
+socket.on('monopoly_finished', function (data) {
+  show('monopoly-finished');
+  $('#mo-verdict').textContent = data.winner + ' 先到终点！🏆';
+  spawnConfetti();
+});
+
 socket.on('partner_left', function () {
   toast('TA 离开了房间 😢');
   selectedGame = 'quiz';
@@ -524,5 +709,17 @@ document.addEventListener('keydown', function (e) {
       var gi = $('#guess-input');
       if (gi && gi.value.trim()) $('#btn-submit-guess').click();
     }
+    var sy = $('#spy-playing');
+    if (sy && sy.classList.contains('active')) {
+      var si2 = $('#sy-input');
+      if (si2 && !si2.disabled && si2.value.trim()) $('#btn-submit-sy').click();
+    }
+    var sr = $('#spy-reveal');
+    if (sr && sr.classList.contains('active')) {
+      var sg = $('#sy-guess');
+      if (sg && sg.value.trim()) $('#btn-sy-guess').click();
+    }
+    var mp = $('#monopoly-playing');
+    if (mp && mp.classList.contains('active') && !$('#btn-mono-roll').disabled) $('#btn-mono-roll').click();
   } catch (ex) { /* ignore enter key errors */ }
 });

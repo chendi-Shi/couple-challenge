@@ -54,6 +54,9 @@ var GAME_MODES = {
   wishlist: { name: '📋 愿望清单', desc: '一起写想一起做的事，攒到见面', icon: '📋' },
   roleplay: { name: '🎭 情景扮演', desc: '给一个场景，各自写你会怎么做', icon: '🎭' },
   draw:     { name: '🎨 你画我猜', desc: '一个人画，另一个人猜是什么', icon: '🎨' },
+  spy:      { name: '🃏 谁是卧底', desc: '两人拿相似词，猜对方是什么词', icon: '🃏' },
+  truthlie: { name: '🕵️ 真假日常', desc: '写三件事其中一件是假的，TA来猜', icon: '🕵️' },
+  monopoly: { name: '🎲 恋爱飞行棋', desc: '掷骰子走格子，每格有小惊喜', icon: '🎲' },
 };
 
 // ===================== 默契挑战 - 主题和题库 =====================
@@ -162,6 +165,71 @@ var STORY_ROUNDS = 6;
 var WISHLIST_ROUNDS = 5;
 var ROLEPLAY_ROUNDS = 3;
 var DRAW_ROUNDS = 4;
+var SPY_ROUNDS = 3;
+var TRUTHLIE_ROUNDS = 3;
+var MONOPOLY_BOARD = 25;
+
+// 谁是卧底 - 相似词对
+var SPY_PAIRS = [
+  ['拥抱', '牵手'],
+  ['喜欢', '想念'],
+  ['早安', '晚安'],
+  ['下雨', '下雪'],
+  ['火锅', '烧烤'],
+  ['咖啡', '奶茶'],
+  ['电影', '剧集'],
+  ['日记', '情书'],
+  ['日出', '日落'],
+  ['海边', '山顶'],
+  ['蛋糕', '饼干'],
+  ['钢琴', '吉他'],
+  ['春天', '秋天'],
+  ['星星', '月亮'],
+  ['猫咪', '狗狗'],
+  ['眼睛', '笑容'],
+  ['回家', '见面'],
+  ['等待', '期盼'],
+  ['悄悄', '偷偷'],
+  ['温柔', '体贴'],
+];
+
+// 恋爱飞行棋 - 格子内容
+function genMonopolySquares() {
+  var squares = [
+    { type: 'q', text: '说一件今天让你想到TA的事', icon: '💭' },
+    { type: 'a', text: '发给TA一个亲亲的表情包', icon: '😘' },
+    { type: 'q', text: '上一次见到TA时，你第一句话说了什么？', icon: '💬' },
+    { type: 'b', text: '前进2格——因为TA也在想你', icon: '✨' },
+    { type: 'q', text: '你觉得TA今天最开心的一件事是什么？', icon: '🔮' },
+    { type: 'a', text: '现在立刻给TA发一条语音说"加油"', icon: '🎤' },
+    { type: 'b', text: '后退1格——刷到前任的动态（开玩笑的，重来吧）', icon: '😅' },
+    { type: 'q', text: '你最喜欢的关于TA的一个记忆是什么？', icon: '📸' },
+    { type: 'a', text: '说出TA身上你最喜欢的一个细节', icon: '👀' },
+    { type: 'q', text: '如果TA是超级英雄，TA的超能力会是什么？', icon: '🦸' },
+    { type: 'b', text: '前进3格——TA刚刚说想你', icon: '💕' },
+    { type: 'q', text: '异地这段时间，你最怀念TA的什么？', icon: '💭' },
+    { type: 'a', text: '闭上眼睛想TA 10秒，然后告诉TA你刚想了什么', icon: '💫' },
+    { type: 'b', text: '暂停一轮——网络延迟中...', icon: '📡' },
+    { type: 'q', text: '你觉得十年后的你们在做哪顿饭？', icon: '🍳' },
+    { type: 'a', text: '发一条只有三个字的消息给TA', icon: '📝' },
+    { type: 'q', text: '你觉得TA此刻在想什么？猜一下', icon: '🤔' },
+    { type: 'b', text: '后退2格——被路边的小猫分散了注意力', icon: '🐱' },
+    { type: 'q', text: '你觉得你们的爱情最像什么？', icon: '💖' },
+    { type: 'a', text: '两人都打一个爱心emoji然后截图', icon: '💗' },
+    { type: 'b', text: '前进4格——你们心有灵犀！', icon: '🎯' },
+    { type: 'q', text: '第一次见面，你穿的是什么？', icon: '👗' },
+    { type: 'a', text: '现在做个搞笑的表情发给对方', icon: '🤪' },
+    { type: 'q', text: '你觉得TA做的最让你感动的一件事是什么？', icon: '🥹' },
+    { type: 'b', text: '终点在望！再来一次', icon: '🏁' },
+  ];
+  // shuffle
+  var arr = squares.slice();
+  for (var i = arr.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  }
+  return arr;
+}
 
 // ===================== 情景扮演 - 场景 =====================
 var ROLEPLAY_SCENARIOS = [
@@ -211,6 +279,19 @@ function createRoom(roomName, hostName, gameMode, themeKey, apiKey) {
     drawRound: 0,
     drawWord: '',
     drawDrawer: '',
+    // spy
+    spyPair: null,
+    spyWordA: '',
+    spyWordB: '',
+    spyRound: 0,
+    spyDescriptions: [],
+    // truthlie
+    truthlieSet: [],
+    truthlieRound: 0,
+    // monopoly
+    monopolySquares: [],
+    monopolyPos: {},
+    monopolyTurn: '',
     // guards against race conditions
     _quizLocked: false,
     _storyLocked: false,
@@ -290,6 +371,9 @@ io.on('connection', function (socket) {
     if (room.gameMode === 'wishlist') return startWishlist(room);
     if (room.gameMode === 'roleplay') return startRoleplay(room);
     if (room.gameMode === 'draw') return startDraw(room);
+    if (room.gameMode === 'spy') return startSpy(room);
+    if (room.gameMode === 'truthlie') return startTruthLie(room);
+    if (room.gameMode === 'monopoly') return startMonopoly(room);
 
     // quiz 模式
     room.questions = [];
@@ -457,6 +541,129 @@ io.on('connection', function (socket) {
     }
   });
 
+  // ====== 谁是卧底 - 描述 ======
+  socket.on('spy_describe', function (text) {
+    var room = getRoom(socket);
+    if (!room || room.state !== 'playing' || room.gameMode !== 'spy') return;
+    var d = esc(text).substring(0, 100);
+    room.spyDescriptions.push({ nickname: esc(socket.data.nickname), text: d });
+    room.spyRound++;
+
+    if (room.spyRound >= SPY_ROUNDS * 2) {
+      revealSpy(room);
+    } else {
+      var pids = Object.keys(room.players);
+      var nextPid = pids[room.spyRound % 2];
+      var rid = getRoomId(room);
+      io.to(rid).emit('spy_update', {
+        descriptions: room.spyDescriptions,
+        round: Math.floor(room.spyRound / 2) + 1,
+        totalRounds: SPY_ROUNDS,
+        speakerId: nextPid,
+        speakerName: esc(room.players[nextPid].nickname),
+      });
+    }
+  });
+
+  socket.on('spy_guess', function (guess) {
+    var room = getRoom(socket);
+    if (!room || room.state !== 'playing' || room.gameMode !== 'spy') return;
+    room._answers = room._answers || {};
+    room._answers[socket.id] = esc(guess).substring(50);
+    io.to(socket.data.roomId).emit('player_answered', { playerId: socket.id, nickname: esc(socket.data.nickname) });
+    if (Object.keys(room.players).every(function (pid) { return room._answers[pid]; })) {
+      finishSpy(room);
+    }
+  });
+
+  // ====== 真假日常 - 提交 ======
+  socket.on('truthlie_submit', function (items) {
+    var room = getRoom(socket);
+    if (!room || room.state !== 'playing' || room.gameMode !== 'truthlie') return;
+    // items is array of 3 strings
+    var clean = [];
+    for (var i = 0; i < 3 && i < (items || []).length; i++) {
+      clean.push(esc(items[i]).substring(0, 80));
+    }
+    while (clean.length < 3) clean.push('（漏填了）');
+    room.truthlieSet.push({ playerId: socket.id, nickname: esc(socket.data.nickname), items: clean, lieIdx: -1 });
+    io.to(socket.data.roomId).emit('player_answered', { playerId: socket.id, nickname: esc(socket.data.nickname) });
+
+    if (room.truthlieSet.length >= 2 && room.truthlieRound === 0) {
+      // Both submitted their items. First round: tell them to pick lie index
+      room.truthlieRound = 1;
+      room._answers = {};
+      io.to(socket.data.roomId).emit('truthlie_pick_lie', { items: room.truthlieSet });
+    }
+  });
+
+  socket.on('truthlie_lie_idx', function (idx) {
+    var room = getRoom(socket);
+    if (!room || room.state !== 'playing' || room.gameMode !== 'truthlie') return;
+    room._answers = room._answers || {};
+    var li = parseInt(idx) || 0;
+    if (li < 0 || li > 2) li = 0;
+    room._answers[socket.id] = li;
+    io.to(socket.data.roomId).emit('player_answered', { playerId: socket.id, nickname: esc(socket.data.nickname) });
+    if (Object.keys(room.players).every(function (pid) { return room._answers[pid] !== undefined; })) {
+      revealTruthLie(room, 1);
+    }
+  });
+
+  socket.on('truthlie_guess', function (idx) {
+    var room = getRoom(socket);
+    if (!room || room.state !== 'playing' || room.gameMode !== 'truthlie') return;
+    room._answers = room._answers || {};
+    var gi = parseInt(idx) || 0;
+    if (gi < 0 || gi > 2) gi = 0;
+    room._answers[socket.id] = gi;
+    io.to(socket.data.roomId).emit('player_answered', { playerId: socket.id, nickname: esc(socket.data.nickname) });
+    if (Object.keys(room.players).every(function (pid) { return room._answers[pid] !== undefined; })) {
+      revealTruthLie(room, 2);
+    }
+  });
+
+  socket.on('truthlie_next', function () {
+    var room = getRoom(socket);
+    if (!room || room.state !== 'playing' || room.gameMode !== 'truthlie') return;
+    room.truthlieSet = [];
+    room._answers = {};
+    room.truthlieRound = 0;
+    io.to(socket.data.roomId).emit('truthlie_round', { round: (room.round || 0) + 1, totalRounds: TRUTHLIE_ROUNDS });
+  });
+
+  // ====== 恋爱飞行棋 - 掷骰子 ======
+  socket.on('monopoly_roll', function () {
+    var room = getRoom(socket);
+    if (!room || room.state !== 'playing' || room.gameMode !== 'monopoly') return;
+    var pids = Object.keys(room.players);
+    var turnIdx = (room.monopolyTurns || 0) % 2;
+    var expected = pids[turnIdx];
+    if (socket.id !== expected) return; // Not your turn
+    room.monopolyTurns = (room.monopolyTurns || 0) + 1;
+
+    var dice = Math.floor(Math.random() * 6) + 1;
+    var pos = (room.monopolyPos[socket.id] || 0) + dice;
+    if (pos >= MONOPOLY_BOARD - 1) pos = MONOPOLY_BOARD - 1;
+    room.monopolyPos[socket.id] = pos;
+    var square = room.monopolySquares[pos] || { type: 'q', text: '和TA分享此刻的心情', icon: '💬' };
+
+    if (pos >= MONOPOLY_BOARD - 1) {
+      finishMonopoly(room, socket.id);
+    } else {
+      io.to(getRoomId(room)).emit('monopoly_update', {
+        dice: dice,
+        playerId: socket.id,
+        playerName: esc(socket.data.nickname),
+        pos: pos,
+        posOther: room.monopolyPos[expected === pids[0] ? pids[1] : pids[0]] || 0,
+        total: MONOPOLY_BOARD,
+        square: square,
+        nextPlayerId: pids[(turnIdx + 1) % 2],
+      });
+    }
+  });
+
   // ====== 重新开始 ======
   socket.on('play_again', function () {
     var room = getRoom(socket);
@@ -476,6 +683,16 @@ io.on('connection', function (socket) {
     room.drawWords = [];
     room.drawRound = 0;
     room.drawWord = '';
+    room.spyPair = null;
+    room.spyWordA = '';
+    room.spyWordB = '';
+    room.spyRound = 0;
+    room.spyDescriptions = [];
+    room.truthlieSet = [];
+    room.truthlieRound = 0;
+    room.monopolySquares = [];
+    room.monopolyPos = {};
+    room.monopolyTurns = 0;
     Object.values(room.players).forEach(function (p) { p.score = 0; p.streak = 0; });
     io.to(socket.data.roomId).emit('room_update', roomInfo(room, socket.data.roomId));
   });
@@ -768,6 +985,141 @@ function finishDraw(room) {
   var sorted = Object.values(room.players).sort(function (a, b) { return (b.score || 0) - (a.score || 0); });
   io.to(rid).emit('draw_finished', {
     players: sorted.map(function (p) { return { nickname: p.nickname, score: p.score || 0 }; }),
+  });
+  io.to(rid).emit('room_update', roomInfo(room, rid));
+}
+
+// ===================== 谁是卧底逻辑 =====================
+function startSpy(room) {
+  room.state = 'playing';
+  room.spyRound = 0;
+  room.spyDescriptions = [];
+  room._answers = {};
+  var pair = SPY_PAIRS[Math.floor(Math.random() * SPY_PAIRS.length)];
+  room.spyPair = pair;
+  var pids = Object.keys(room.players);
+  // Randomly assign which word goes to whom
+  if (Math.random() < 0.5) {
+    room.spyWordA = pair[0]; room.spyWordB = pair[1];
+  } else {
+    room.spyWordA = pair[1]; room.spyWordB = pair[0];
+  }
+  var firstPid = pids[0];
+  var rid = getRoomId(room);
+  // Send private words to each player
+  io.to(pids[0]).emit('spy_start', { word: room.spyWordA, speakerFirst: pids[0] === firstPid, totalRounds: SPY_ROUNDS, round: 1, speakerId: firstPid, speakerName: esc(room.players[firstPid].nickname), descriptions: [] });
+  io.to(pids[1]).emit('spy_start', { word: room.spyWordB, speakerFirst: pids[1] === firstPid, totalRounds: SPY_ROUNDS, round: 1, speakerId: firstPid, speakerName: esc(room.players[firstPid].nickname), descriptions: [] });
+}
+
+function revealSpy(room) {
+  var rid = getRoomId(room);
+  io.to(rid).emit('spy_reveal', {
+    descriptions: room.spyDescriptions,
+    pair: room.spyPair,
+  });
+}
+
+function finishSpy(room) {
+  room.state = 'finished';
+  var rid = getRoomId(room);
+  var pids = Object.keys(room.players);
+  var results = [];
+  for (var i = 0; i < pids.length; i++) {
+    var pid = pids[i];
+    var otherPid = pids[1 - i];
+    var correct = room._answers[pid] && room._answers[pid] === (i === 0 ? room.spyWordB : room.spyWordA);
+    results.push({ nickname: esc(room.players[pid].nickname), guess: room._answers[pid] || '', correct: correct });
+  }
+  io.to(rid).emit('spy_finished', {
+    pair: room.spyPair,
+    words: {
+      [room.players[pids[0]].nickname]: room.spyWordA,
+      [room.players[pids[1]].nickname]: room.spyWordB,
+    },
+    results: results,
+  });
+  io.to(rid).emit('room_update', roomInfo(room, rid));
+}
+
+// ===================== 真假日常逻辑 =====================
+function startTruthLie(room) {
+  room.state = 'playing';
+  room.truthlieSet = [];
+  room.truthlieRound = 0;
+  room.round = 0;
+  room._answers = {};
+  io.to(getRoomId(room)).emit('truthlie_round', { round: 1, totalRounds: TRUTHLIE_ROUNDS });
+}
+
+function revealTruthLie(room, phase) {
+  var rid = getRoomId(room);
+  var pids = Object.keys(room.players);
+  if (phase === 1) {
+    // Each player picked which of their own items is the lie
+    // Store the lie index
+    for (var i = 0; i < room.truthlieSet.length; i++) {
+      var set = room.truthlieSet[i];
+      set.lieIdx = room._answers[set.playerId] || 0;
+    }
+    room._answers = {};
+    // Now show each player the OTHER person's 3 items, ask them to guess the lie
+    io.to(pids[0]).emit('truthlie_guess_phase', { items: room.truthlieSet.filter(function (s) { return s.playerId !== pids[0]; })[0] });
+    io.to(pids[1]).emit('truthlie_guess_phase', { items: room.truthlieSet.filter(function (s) { return s.playerId !== pids[1]; })[0] });
+  } else {
+    // Both guessed - reveal
+    var results = [];
+    for (var j = 0; j < room.truthlieSet.length; j++) {
+      var st = room.truthlieSet[j];
+      var guesser = pids[1 - room.truthlieSet.findIndex(function (s) { return s.playerId === st.playerId; })];
+      var guessIdx = room._answers[guesser] !== undefined ? room._answers[guesser] : -1;
+      var gotIt = guessIdx === st.lieIdx;
+      results.push({
+        nickname: st.nickname,
+        items: st.items,
+        lieIdx: st.lieIdx,
+        lieText: st.items[st.lieIdx],
+        guesser: esc(room.players[guesser].nickname),
+        guessIdx: guessIdx,
+        correct: gotIt,
+      });
+    }
+    io.to(rid).emit('truthlie_reveal', { results: results });
+    room.round++;
+    if (room.round >= TRUTHLIE_ROUNDS) {
+      room.state = 'finished';
+      io.to(rid).emit('truthlie_finished', { results: results });
+      io.to(rid).emit('room_update', roomInfo(room, rid));
+    }
+  }
+}
+
+// ===================== 恋爱飞行棋逻辑 =====================
+function startMonopoly(room) {
+  room.state = 'playing';
+  room.monopolySquares = genMonopolySquares();
+  room.monopolyPos = {};
+  room.monopolyTurns = 0;
+  var pids = Object.keys(room.players);
+  room.monopolyPos[pids[0]] = 0;
+  room.monopolyPos[pids[1]] = 0;
+  Object.values(room.players).forEach(function (p) { p.score = 0; });
+  io.to(getRoomId(room)).emit('monopoly_start', {
+    total: MONOPOLY_BOARD,
+    firstPlayerId: pids[0],
+    firstPlayerName: esc(room.players[pids[0]].nickname),
+    players: [{
+      id: pids[0], name: esc(room.players[pids[0]].nickname), pos: 0, color: '#ff6b9d',
+    }, {
+      id: pids[1], name: esc(room.players[pids[1]].nickname), pos: 0, color: '#7c5cfc',
+    }],
+  });
+}
+
+function finishMonopoly(room, winnerId) {
+  room.state = 'finished';
+  var rid = getRoomId(room);
+  io.to(rid).emit('monopoly_finished', {
+    winner: esc(room.players[winnerId].nickname),
   });
   io.to(rid).emit('room_update', roomInfo(room, rid));
 }
