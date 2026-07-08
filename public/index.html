@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>情侣默契挑战</title>
+  <title>情侣小游戏</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -13,16 +13,15 @@
     <div id="lobby" class="screen active">
       <div class="hero">
         <div class="logo">💞</div>
-        <h1>情侣默契挑战</h1>
-        <p class="subtitle">抽题 · 答题 · 揭晓 · 默契加分</p>
+        <h1>异地情侣小游戏</h1>
+        <p class="subtitle">选一个游戏，两个人一起玩</p>
       </div>
 
-      <div class="tabs">
+      <div class="tabs tabs-3">
         <button class="tab active" data-tab="create">创建房间</button>
         <button class="tab" data-tab="join">加入房间</button>
       </div>
 
-      <!-- 创建 -->
       <div id="tab-create" class="tab-content active">
         <div class="input-group">
           <label>你的昵称</label>
@@ -32,8 +31,15 @@
           <label>房间名</label>
           <input id="room-name" type="text" placeholder="比如：甜蜜小屋" maxlength="20">
         </div>
-        <label class="input-group-label">选择主题包</label>
-        <div class="theme-grid" id="theme-picker"></div>
+
+        <label class="input-group-label">选一个游戏</label>
+        <div class="game-mode-grid" id="game-mode-picker"></div>
+
+        <div id="quiz-theme-area">
+          <label class="input-group-label">默契挑战 · 主题包</label>
+          <div class="theme-grid" id="theme-picker"></div>
+        </div>
+
         <div class="input-group" id="api-key-group" style="display:none;">
           <label>DeepSeek API Key <span class="label-hint">（AI 出题需要）</span></label>
           <input id="api-key-input" type="password" placeholder="sk-..." maxlength="60">
@@ -41,7 +47,6 @@
         <button id="btn-create" class="btn-primary">创建房间</button>
       </div>
 
-      <!-- 加入 -->
       <div id="tab-join" class="tab-content">
         <div class="input-group">
           <label>房间码</label>
@@ -61,7 +66,10 @@
       <div class="room-header">
         <div class="room-badge">房间 <span id="waiting-room-id"></span></div>
         <h2 id="waiting-room-name"></h2>
-        <div class="theme-tag" id="waiting-theme-tag"></div>
+        <div class="tags">
+          <span class="theme-tag" id="waiting-game-tag"></span>
+          <span class="theme-tag" id="waiting-theme-tag"></span>
+        </div>
       </div>
       <div class="waiting-content">
         <p class="waiting-hint">把房间码发给 TA，一起进来吧～</p>
@@ -82,89 +90,252 @@
       </div>
     </div>
 
-    <!-- ====== 答题中 ====== -->
-    <div id="playing" class="screen">
+    <!-- ====== 默契挑战 - 答题中 ====== -->
+    <div id="quiz-playing" class="screen">
       <div class="round-bar">
         <span class="round-num">第 <span id="round-num">1</span> / <span id="round-total">5</span> 题</span>
         <span class="round-cat" id="round-cat"></span>
       </div>
-
-      <div class="question-card" id="question-card">
+      <div class="question-card">
         <div class="question-label" id="question-label">默契问答</div>
         <div class="challenge-emoji" id="challenge-emoji" style="display:none;"></div>
         <h3 id="question-text"></h3>
       </div>
-
       <div id="choice-options" class="options-grid"></div>
       <div id="fill-answer" style="display:none;">
         <textarea id="fill-input" placeholder="写下你的答案..." maxlength="200"></textarea>
         <button id="btn-submit-fill" class="btn-primary">提交答案</button>
       </div>
-
       <div class="answer-status">
         <span class="status-badge" id="status-me">👤 你：等待中</span>
         <span class="status-badge" id="status-partner">❤️ TA：等待中</span>
       </div>
     </div>
 
-    <!-- ====== 结果揭晓 ====== -->
-    <div id="result" class="screen">
+    <!-- ====== 默契挑战 - 结果 ====== -->
+    <div id="quiz-result" class="screen">
       <div class="result-reveal" id="result-reveal">
         <div class="result-icon" id="result-icon"></div>
         <div class="result-text" id="result-text"></div>
       </div>
       <div class="answer-cards">
-        <div class="answer-card" id="answer-card-1">
-          <div class="answer-card-label">🐱</div>
-          <div class="answer-card-nickname" id="result-nickname1"></div>
-          <div class="answer-card-text" id="result-answer1"></div>
-        </div>
-        <div class="answer-card" id="answer-card-2">
-          <div class="answer-card-label">🐶</div>
-          <div class="answer-card-nickname" id="result-nickname2"></div>
-          <div class="answer-card-text" id="result-answer2"></div>
-        </div>
+        <div class="answer-card"><div class="answer-card-label">🐱</div><div class="answer-card-nickname" id="result-nickname1"></div><div class="answer-card-text" id="result-answer1"></div></div>
+        <div class="answer-card"><div class="answer-card-label">🐶</div><div class="answer-card-nickname" id="result-nickname2"></div><div class="answer-card-text" id="result-answer2"></div></div>
       </div>
-      <div class="ai-commentary" id="ai-commentary" style="display:none;">
-        <div class="ai-commentary-header">🤖 AI 点评</div>
-        <div class="ai-commentary-text" id="ai-commentary-text"></div>
-      </div>
-      <div class="score-display">
-        <span id="score-me-display"></span>
-        <span id="score-partner-display"></span>
-      </div>
-      <button id="btn-next" class="btn-primary">下一题</button>
+      <div class="ai-commentary" id="ai-commentary" style="display:none;"><div class="ai-commentary-header">🤖 AI 点评</div><div class="ai-commentary-text" id="ai-commentary-text"></div></div>
+      <button id="btn-next-quiz" class="btn-primary">下一题</button>
     </div>
 
-    <!-- ====== 终局 ====== -->
-    <div id="finished" class="screen">
-      <div class="hero">
-        <div class="logo" id="finish-emoji">🎉</div>
-        <h1>挑战结束！</h1>
-        <p class="subtitle" id="verdict-text"></p>
-      </div>
+    <!-- ====== 默契挑战 - 终局 ====== -->
+    <div id="quiz-finished" class="screen">
+      <div class="hero"><div class="logo" id="finish-emoji">🎉</div><h1>挑战结束！</h1><p class="subtitle" id="verdict-text"></p></div>
       <div class="score-board" id="score-board"></div>
-
-      <!-- AI 总结 -->
-      <div class="ai-summary" id="ai-summary" style="display:none;">
-        <div class="ai-summary-header">🤖 AI 写给你们的信</div>
-        <div class="ai-summary-text" id="ai-summary-text"></div>
-      </div>
-
-      <!-- 回顾 -->
-      <div class="review-section">
-        <h3 class="review-title">📋 本局回顾</h3>
-        <div id="review-list"></div>
-      </div>
-
-      <button id="btn-again" class="btn-primary">再玩一局</button>
-      <button id="btn-back" class="btn-secondary">返回首页</button>
+      <div class="ai-summary" id="ai-summary" style="display:none;"><div class="ai-summary-header">🤖 AI 写给你们的信</div><div class="ai-summary-text" id="ai-summary-text"></div></div>
+      <div class="review-section"><h3 class="review-title">📋 本局回顾</h3><div id="review-list"></div></div>
+      <button id="btn-again-quiz" class="btn-primary">再玩一局</button>
+      <button id="btn-back-quiz" class="btn-secondary">返回首页</button>
     </div>
 
-    <!-- ====== Toast ====== -->
-    <div id="toast" class="toast"></div>
+    <!-- ====== 故事接龙 ====== -->
+    <div id="story-playing" class="screen">
+      <div class="round-bar"><span class="round-num">第 <span id="story-round">1</span> / <span id="story-total">6</span> 句</span><span class="round-cat">📝 故事接龙</span></div>
+      <div class="story-panel" id="story-scroll">
+        <div class="story-prompt" id="story-prompt-text"></div>
+        <div id="story-lines"></div>
+      </div>
+      <div class="story-input-area">
+        <div id="story-turn-hint"></div>
+        <textarea id="story-input" placeholder="续写下一句..." maxlength="150" disabled></textarea>
+        <button id="btn-submit-story" class="btn-primary" disabled>提交</button>
+        <div class="story-waiting" id="story-waiting">等待 TA 写下一句...</div>
+      </div>
+    </div>
 
-    <!-- ====== 庆祝粒子 ====== -->
+    <!-- ====== 故事接龙 - 完成 ====== -->
+    <div id="story-finished" class="screen">
+      <div class="hero"><div class="logo">✨</div><h1>故事完成！</h1><p class="subtitle">这是你们一起写的故事 💕</p></div>
+      <div class="story-full" id="story-full"></div>
+      <button id="btn-again-story" class="btn-primary">再来一篇</button>
+      <button id="btn-back-story" class="btn-secondary">返回首页</button>
+    </div>
+
+    <!-- ====== 愿望清单 - 进行中 ====== -->
+    <div id="wishlist-playing" class="screen">
+      <div class="round-bar"><span class="round-num">第 <span id="wl-round">1</span> / <span id="wl-total">5</span> 项</span><span class="round-cat">📋 愿望清单</span></div>
+      <div class="question-card">
+        <div class="question-label">写下你们的愿望</div>
+        <h3 id="wl-prompt-text"></h3>
+      </div>
+      <textarea id="wl-input" placeholder="写下你的愿望..." maxlength="150"></textarea>
+      <button id="btn-submit-wish" class="btn-primary">提交愿望</button>
+      <div class="answer-status">
+        <span class="status-badge" id="wl-status-me">👤 你：等待中</span>
+        <span class="status-badge" id="wl-status-partner">❤️ TA：等待中</span>
+      </div>
+    </div>
+
+    <!-- ====== 愿望清单 - 揭晓 ====== -->
+    <div id="wishlist-reveal" class="screen">
+      <div class="result-reveal"><div class="result-icon">💕</div><div class="result-text" id="wl-reveal-title">看看 TA 的愿望</div></div>
+      <div class="wish-cards"><div class="wish-card"><div class="wish-card-label">🐱</div><div class="wish-card-name" id="wl-name1"></div><div class="wish-card-text" id="wl-text1"></div></div><div class="wish-card"><div class="wish-card-label">🐶</div><div class="wish-card-name" id="wl-name2"></div><div class="wish-card-text" id="wl-text2"></div></div></div>
+      <button id="btn-next-wish" class="btn-primary">下一项</button>
+    </div>
+
+    <!-- ====== 愿望清单 - 完成 ====== -->
+    <div id="wishlist-finished" class="screen">
+      <div class="hero"><div class="logo">📋</div><h1>愿望清单完成！</h1><p class="subtitle">攒着，等见面一个一个完成 💕</p></div>
+      <div id="wl-list"></div>
+      <button id="btn-again-wish" class="btn-primary">再来一局</button>
+      <button id="btn-back-wish" class="btn-secondary">返回首页</button>
+    </div>
+
+    <!-- ====== 情景扮演 ====== -->
+    <div id="roleplay-playing" class="screen">
+      <div class="round-bar"><span class="round-num">第 <span id="rp-round">1</span> / <span id="rp-total">3</span> 场</span><span class="round-cat">🎭 情景扮演</span></div>
+      <div class="question-card">
+        <div class="question-label">如果你是主角...</div>
+        <h3 id="rp-scenario-text"></h3>
+      </div>
+      <textarea id="rp-input" placeholder="写写你会怎么做..." maxlength="200"></textarea>
+      <button id="btn-submit-rp" class="btn-primary">提交答案</button>
+      <div class="answer-status">
+        <span class="status-badge" id="rp-status-me">👤 你：等待中</span>
+        <span class="status-badge" id="rp-status-partner">❤️ TA：等待中</span>
+      </div>
+    </div>
+
+    <div id="roleplay-reveal" class="screen">
+      <div class="result-reveal"><div class="result-icon">🎭</div><div class="result-text" id="rp-reveal-title">看看 TA 会怎么做</div></div>
+      <div class="question-card"><h3 id="rp-reveal-scenario"></h3></div>
+      <div class="answer-cards">
+        <div class="answer-card"><div class="answer-card-label">🐱</div><div class="answer-card-nickname" id="rp-name1"></div><div class="answer-card-text" id="rp-text1"></div></div>
+        <div class="answer-card"><div class="answer-card-label">🐶</div><div class="answer-card-nickname" id="rp-name2"></div><div class="answer-card-text" id="rp-text2"></div></div>
+      </div>
+      <button id="btn-next-rp" class="btn-primary">下一场</button>
+    </div>
+
+    <div id="roleplay-finished" class="screen">
+      <div class="hero"><div class="logo">🎭</div><h1>小剧场结束！</h1><p class="subtitle">下次见面可以真的演一演～</p></div>
+      <button id="btn-again-rp" class="btn-primary">再来一局</button>
+      <button id="btn-back-rp" class="btn-secondary">返回首页</button>
+    </div>
+
+    <!-- ====== 你画我猜 ====== -->
+    <div id="draw-playing" class="screen">
+      <div class="round-bar"><span class="round-num">第 <span id="dr-round">1</span> / <span id="dr-total">4</span> 轮</span><span class="round-cat">🎨 你画我猜</span></div>
+      <div class="draw-word-display" id="draw-word-display"></div>
+      <div class="draw-canvas-wrap">
+        <canvas id="draw-canvas" width="360" height="280"></canvas>
+        <div class="draw-tools">
+          <button class="draw-tool-btn" id="btn-black" style="background:#333"></button>
+          <button class="draw-tool-btn" id="btn-red" style="background:#ff6b9d"></button>
+          <button class="draw-tool-btn" id="btn-blue" style="background:#7c5cfc"></button>
+          <button class="draw-tool-btn" id="btn-green" style="background:#4caf50"></button>
+          <button class="draw-tool-btn" id="btn-orange" style="background:#ffb300"></button>
+          <button class="draw-clear-btn" id="btn-clear">清空</button>
+        </div>
+      </div>
+      <div id="guess-area" style="display:none;">
+        <input id="guess-input" type="text" placeholder="猜猜这是什么..." maxlength="20">
+        <button id="btn-submit-guess" class="btn-primary" style="margin-top:8px">猜一下！</button>
+      </div>
+      <div id="draw-guesses"></div>
+      <button id="btn-next-dr" class="btn-primary" style="display:none;">下一轮</button>
+    </div>
+
+    <div id="draw-finished" class="screen">
+      <div class="hero"><div class="logo">🎨</div><h1>画猜结束！</h1><p class="subtitle" id="dr-verdict"></p></div>
+      <div class="score-board" id="dr-score-board"></div>
+      <button id="btn-again-dr" class="btn-primary">再来一局</button>
+      <button id="btn-back-dr" class="btn-secondary">返回首页</button>
+    </div>
+
+    <!-- ====== 谁是卧底 ====== -->
+    <div id="spy-playing" class="screen">
+      <div class="round-bar"><span class="round-num">第 <span id="sy-round">1</span> / <span id="sy-total">3</span> 轮</span><span class="round-cat">🃏 谁是卧底</span></div>
+      <div class="spy-word-badge" id="sy-word-badge">你的词：<b id="sy-word"></b></div>
+      <div class="spy-desc-list" id="sy-log"></div>
+      <div class="spy-input-area">
+        <div id="sy-turn-hint"></div>
+        <textarea id="sy-input" placeholder="用一句话描述你的词，但不能说出那个词..." maxlength="100" disabled></textarea>
+        <button id="btn-submit-sy" class="btn-primary" disabled>提交描述</button>
+      </div>
+    </div>
+
+    <div id="spy-reveal" class="screen">
+      <div class="result-reveal"><div class="result-icon">🔍</div><div class="result-text">所有的描述都在这里了——</div></div>
+      <div class="spy-desc-list" id="sy-desc-all"></div>
+      <p class="subtitle" style="text-align:center;margin:10px 0">猜猜对方的词是什么？</p>
+      <input id="sy-guess" type="text" placeholder="输入你猜的那个词..." maxlength="20">
+      <button id="btn-sy-guess" class="btn-primary">提交猜测</button>
+      <div class="answer-status">
+        <span class="status-badge" id="sy-status-me">👤 你：等待中</span>
+        <span class="status-badge" id="sy-status-partner">❤️ TA：等待中</span>
+      </div>
+    </div>
+
+    <div id="spy-finished" class="screen">
+      <div class="hero"><div class="logo">🃏</div><h1>卧底揭晓！</h1><p class="subtitle" id="sy-verdict"></p></div>
+      <div class="score-board" id="sy-results"></div>
+      <button id="btn-again-sy" class="btn-primary">再来一局</button>
+      <button id="btn-back-sy" class="btn-secondary">返回首页</button>
+    </div>
+
+    <!-- ====== 真假日常 ====== -->
+    <div id="truthlie-write" class="screen">
+      <div class="round-bar"><span class="round-num">第 <span id="tl-round">1</span> / <span id="tl-total">3</span> 轮</span><span class="round-cat">🕵️ 真假日常</span></div>
+      <div class="question-card">
+        <div class="question-label">写下你今天做的三件事，其中一件是假的</div>
+        <h3>让 TA 猜猜哪件是假的</h3>
+      </div>
+      <div class="tl-inputs">
+        <input id="tl-item1" type="text" placeholder="第一件事..." maxlength="80">
+        <input id="tl-item2" type="text" placeholder="第二件事..." maxlength="80">
+        <input id="tl-item3" type="text" placeholder="第三件事..." maxlength="80">
+      </div>
+      <button id="btn-submit-tl-items" class="btn-primary">提交</button>
+      <div class="answer-status">
+        <span class="status-badge" id="tl-status-me">👤 你：等待中</span>
+        <span class="status-badge" id="tl-status-partner">❤️ TA：等待中</span>
+      </div>
+    </div>
+
+    <div id="truthlie-pick-lie" class="screen">
+      <div class="question-card"><div class="question-label" style="text-align:center">这三个里面，哪一件是假的？</div><h3>选择你不小心瞎编的那件吧</h3></div>
+      <div class="options-grid" id="tl-pick-options"></div>
+    </div>
+
+    <div id="truthlie-guess" class="screen">
+      <div class="question-card"><div class="question-label" style="text-align:center" id="tl-guess-title"></div><h3>哪件是假的？</h3></div>
+      <div class="options-grid" id="tl-guess-options"></div>
+    </div>
+
+    <div id="truthlie-reveal" class="screen">
+      <div class="result-reveal"><div class="result-icon" id="tl-result-icon"></div><div class="result-text" id="tl-result-text"></div></div>
+      <div id="tl-detail"></div>
+      <button id="btn-next-tl" class="btn-primary">下一轮</button>
+    </div>
+
+    <!-- ====== 恋爱飞行棋 ====== -->
+    <div id="monopoly-playing" class="screen">
+      <div class="round-cat" style="text-align:center;margin-bottom:8px">🎲 恋爱飞行棋</div>
+      <div class="mono-board" id="mono-board"></div>
+      <div class="mono-status" id="mono-status"></div>
+      <div class="mono-card" id="mono-card" style="display:none;">
+        <div class="mono-card-icon" id="mono-card-icon"></div>
+        <div class="mono-card-text" id="mono-card-text"></div>
+      </div>
+      <button id="btn-mono-roll" class="btn-primary">🎲 掷骰子</button>
+      <button id="btn-mono-next" class="btn-primary" style="display:none;">继续 →</button>
+    </div>
+
+    <div id="monopoly-finished" class="screen">
+      <div class="hero"><div class="logo">🏆</div><h1>到达终点！</h1><p class="subtitle" id="mo-verdict"></p></div>
+      <button id="btn-again-mo" class="btn-primary">再来一局</button>
+      <button id="btn-back-mo" class="btn-secondary">返回首页</button>
+    </div>
+
+    <div id="toast" class="toast"></div>
     <div id="confetti-container"></div>
   </div>
 
