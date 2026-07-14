@@ -1129,10 +1129,15 @@ var PORT = process.env.PORT || 7860;
 // 公网隧道（仅本地启动时使用）
 try {
   var lt = require('localtunnel');
+  console.log('正在创建公网隧道...');
   lt({ port: PORT }).then(function (tunnel) {
     console.log('公网: ' + tunnel.url);
-  }).catch(function () {});
-} catch (e) {}
+  }).catch(function (e) {
+    console.log('隧道错误: ' + e.message);
+  });
+} catch (e) {
+  console.log('隧道模块未安装: ' + e.message);
+}
 
 server.listen(PORT, function () {
   console.log('💞 情侣小游戏 http://localhost:' + PORT);
